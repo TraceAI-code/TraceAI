@@ -10,7 +10,6 @@ import {
   Play,
   RotateCcw,
   Search,
-  ShieldAlert,
   ShieldCheck,
   SlidersHorizontal,
   X,

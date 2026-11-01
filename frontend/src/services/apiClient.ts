@@ -3,7 +3,9 @@
  * Proxied through Vite dev server to http://127.0.0.1:8000 during development.
  */
 
-const BASE = '/api/v1';
+const BASE = import.meta.env.VITE_API_URL
+  ? `${import.meta.env.VITE_API_URL.replace(/\/$/, '')}/api/v1`
+  : '/api/v1';
 
 export class ApiError extends Error {
   constructor(

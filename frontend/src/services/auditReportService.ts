@@ -3,7 +3,6 @@ import type { AuditReport, AuditReportOutcome } from '../types/auditReport';
 import type { AuditEvent } from '../types/decisionDetail';
 import type { Evidence } from '../types/evidence';
 import type { ReviewAction } from '../types/review';
-import { getDecisions } from './decisionService';
 
 interface BackendAuditEvent {
   sequence: number;
