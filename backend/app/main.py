@@ -11,6 +11,7 @@ from app.api.decisions import router as decisions_router
 from app.api.evidence import router as evidence_router
 from app.api.policies import router as policies_router
 from app.api.replay import router as replay_router
+from app.core.config import settings
 
 # Initialize the main FastAPI application
 app = FastAPI(
@@ -19,11 +20,15 @@ app = FastAPI(
     version="0.3.0",
 )
 
-# Enable CORS for local frontend development (for example, Vite on localhost:5173)
+# Browser origins allowed to call the API (Vite dev server by default).
+allowed_origins = settings.cors_origin_list
+# The CORS spec forbids using a wildcard origin together with credentials.
+allow_credentials = "*" not in allowed_origins
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=allowed_origins,
+    allow_credentials=allow_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
 )

@@ -6,7 +6,23 @@ tamper-evident audit chains for decisions and events.
 
 import hashlib
 import json
+from datetime import datetime, timezone
 from typing import Any
+
+
+def canonical_timestamp(value: datetime) -> str:
+    """Return a stable ISO-8601 UTC timestamp for hashing.
+
+    Databases differ in whether they preserve timezone information. SQLite, for
+    example, returns naive datetimes even for ``DateTime(timezone=True)``
+    columns. Normalizing to UTC here keeps event hashes identical across
+    database backends.
+    """
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    else:
+        value = value.astimezone(timezone.utc)
+    return value.isoformat()
 
 
 def canonical_json(data: Any) -> str:

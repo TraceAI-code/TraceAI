@@ -24,6 +24,15 @@ class Settings(BaseSettings):
     api_v1_prefix: str = "/api/v1"
     project_name: str = "TraceAI"
 
+    # Comma-separated list of browser origins allowed to call the API.
+    # Use "*" to allow any origin (credentials are then disabled automatically).
+    cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
+
+    @property
+    def cors_origin_list(self) -> list[str]:
+        """Return the configured CORS origins as a clean list."""
+        return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
+
     # Settings loader configuration
     model_config = SettingsConfigDict(
         env_file=".env",

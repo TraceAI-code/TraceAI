@@ -84,4 +84,5 @@ class ReplaySummaryItem(BaseModel):
     status: str
     replay_mode: str
     similarity_score: float
+    diff_summary: dict[str, Any] = Field(default_factory=dict)
     created_at: datetime

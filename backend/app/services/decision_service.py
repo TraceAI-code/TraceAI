@@ -4,7 +4,7 @@ import uuid
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from app.core.hashing import hash_event
+from app.core.hashing import canonical_timestamp, hash_event
 from app.db.models import AuditEvent, Decision, DecisionEvidence, Evidence
 from app.schemas.decision import DecisionCreate, DecisionSummaryResponse
 from app.services.event_recorder import EventRecorder
@@ -172,7 +172,7 @@ def verify_decision_integrity(
     for event in events:
         calculated_hash = hash_event(
             event_type=event.event_type,
-            timestamp=event.timestamp.isoformat(),
+            timestamp=canonical_timestamp(event.timestamp),
             payload=event.payload,
             previous_hash=event.previous_hash,
         )

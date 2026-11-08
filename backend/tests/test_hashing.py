@@ -1,6 +1,24 @@
 """Tests for canonical JSON formatting and SHA-256 hash chaining."""
 
-from app.core.hashing import canonical_json, hash_event, sha256
+from datetime import datetime, timedelta, timezone
+
+from app.core.hashing import (
+    canonical_json,
+    canonical_timestamp,
+    hash_event,
+    sha256,
+)
+
+
+def test_canonical_timestamp_normalizes_to_utc():
+    """Hashing must not depend on how a database round-trips timezones."""
+    aware = datetime(2026, 9, 27, 10, 0, 0, tzinfo=timezone.utc)
+    naive = aware.replace(tzinfo=None)
+    offset = aware.astimezone(timezone(timedelta(hours=2)))
+
+    assert canonical_timestamp(naive) == canonical_timestamp(aware)
+    assert canonical_timestamp(offset) == canonical_timestamp(aware)
+    assert canonical_timestamp(naive) == "2026-09-27T10:00:00+00:00"
 
 
 def test_canonical_json_key_order():

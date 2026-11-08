@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 
-from app.core.hashing import hash_event
+from app.core.hashing import canonical_timestamp, hash_event
 from app.db.models import AuditEvent, Decision, DecisionEvidence, Evidence
 
 
@@ -43,7 +43,7 @@ class EventRecorder:
         # Compute cryptographic hash for this event
         event_hash = hash_event(
             event_type=event_type,
-            timestamp=timestamp.isoformat(),
+            timestamp=canonical_timestamp(timestamp),
             payload=payload,
             previous_hash=previous_hash,
         )

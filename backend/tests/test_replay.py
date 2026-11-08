@@ -116,6 +116,9 @@ def test_deterministic_replay_and_diff():
     assert list_res.status_code == 200
     replays = list_res.json()
     assert len(replays) >= 2
+    # The list must carry diff data: the UI renders replay history from it.
+    assert all("diff_summary" in replay for replay in replays)
+    assert any(replay["diff_summary"]["is_match"] is False for replay in replays)
 
 
 def test_audit_report_generation():

@@ -75,6 +75,7 @@ def list_replays(
             status=r.status,
             replay_mode=r.replay_mode,
             similarity_score=r.similarity_score,
+            diff_summary=r.diff_summary,
             created_at=r.created_at,
         )
         for r in replays
