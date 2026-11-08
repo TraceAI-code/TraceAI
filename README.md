@@ -150,6 +150,10 @@ DATABASE_URL=postgresql+psycopg://username:password@localhost:5432/traceai
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_KEY=your-service-key
 SUPABASE_STORAGE_BUCKET=traceai-evidence
+
+# Browser origins allowed to call the API (comma-separated). Use "*" to allow any,
+# which disables credentialed requests as required by the CORS spec.
+CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
 ```
 
 ### 3. Backend Setup
