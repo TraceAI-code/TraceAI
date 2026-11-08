@@ -10,6 +10,7 @@ from app.schemas.policy import PolicyCreate, PolicyEvaluationResponse, PolicyRes
 from app.services.policy_engine import PolicyEngine
 from app.services.policy_service import (
     create_policy,
+    find_policy_by_name_version,
     get_policy,
     list_policies,
     list_policy_evaluations,
@@ -31,6 +32,15 @@ def register_policy(
     db: Session = Depends(get_db),
 ):
     """Register a new versioned governance policy."""
+    existing = find_policy_by_name_version(db, data.name, data.version)
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"Policy '{data.name}' version '{data.version}' already exists "
+                f"(id={existing.id}). Register a new version instead."
+            ),
+        )
     return create_policy(db, data)
 
 

@@ -17,6 +17,49 @@ export class ApiError extends Error {
   }
 }
 
+/** Build a full API URL for direct downloads (evidence content, audit reports). */
+export function apiUrl(path: string): string {
+  return `${BASE}${path}`;
+}
+
+/** True only when the API explicitly returned 404 Not Found. */
+export function isNotFound(cause: unknown): boolean {
+  return cause instanceof ApiError && cause.status === 404;
+}
+
+interface ValidationIssue {
+  loc?: unknown[];
+  msg?: string;
+  type?: string;
+}
+
+function formatValidationIssues(issues: unknown[]): string {
+  return issues
+    .map((issue) => {
+      if (!issue || typeof issue !== 'object') return String(issue);
+      const { loc, msg } = issue as ValidationIssue;
+      const field = Array.isArray(loc)
+        ? loc.filter((part) => part !== 'body' && part !== 'query').join('.')
+        : '';
+      const message = msg ?? JSON.stringify(issue);
+      return field ? `${field}: ${message}` : message;
+    })
+    .join('; ');
+}
+
+function formatDetail(detail: unknown, fallback: string): string {
+  if (typeof detail === 'string' && detail.trim()) return detail;
+  if (Array.isArray(detail)) return formatValidationIssues(detail) || fallback;
+  if (detail && typeof detail === 'object') {
+    try {
+      return JSON.stringify(detail);
+    } catch {
+      return fallback;
+    }
+  }
+  return fallback;
+}
+
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     headers: { 'Content-Type': 'application/json', ...init.headers },
@@ -24,14 +67,14 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   });
 
   if (!res.ok) {
-    let detail = res.statusText;
+    let detail: unknown = res.statusText;
     try {
       const body = await res.json();
       detail = body.detail ?? body.message ?? detail;
     } catch {
       // non-JSON error body — keep statusText
     }
-    throw new ApiError(res.status, detail);
+    throw new ApiError(res.status, formatDetail(detail, res.statusText));
   }
 
   // 204 No Content — return null

@@ -5,23 +5,23 @@ import PageHeader from '../components/PageHeader';
 import { getDecisions } from '../services/decisionService';
 import type { Decision } from '../types/decision';
 
-type StatusFilter = 'all' | 'created' | 'reviewed' | 'rejected' | 'challenged' | 'other';
+type StatusFilter = 'all' | 'created' | 'reviewed' | 'rejected' | 'requested_review' | 'other';
 
 const statusFilters: { label: string; value: StatusFilter }[] = [
   { label: 'All statuses', value: 'all' },
   { label: 'Created', value: 'created' },
   { label: 'Reviewed', value: 'reviewed' },
   { label: 'Rejected', value: 'rejected' },
-  { label: 'Challenged', value: 'challenged' },
+  { label: 'Review requested', value: 'requested_review' },
   { label: 'Other', value: 'other' },
 ];
 
 function statusGroup(status: string): Exclude<StatusFilter, 'all'> {
   const normalized = status.toLowerCase();
   if (normalized === 'created') return 'created';
-  if (normalized.startsWith('reviewed')) return 'reviewed';
   if (normalized === 'rejected' || normalized.endsWith('_rejected')) return 'rejected';
-  if (normalized === 'challenged' || normalized.endsWith('_challenged')) return 'challenged';
+  if (normalized === 'requested_review' || normalized.endsWith('_requested_review')) return 'requested_review';
+  if (normalized.startsWith('reviewed')) return 'reviewed';
   return 'other';
 }
 
@@ -37,7 +37,7 @@ function statusLabel(status: string | null | undefined): string {
 function statusClasses(status: string): string {
   const normalized = status.toLowerCase();
   if (normalized.includes('reject')) return 'border-rose-400/20 bg-rose-400/[0.08] text-rose-300';
-  if (normalized.includes('challeng') || normalized.includes('violat')) return 'border-amber-400/20 bg-amber-400/[0.08] text-amber-300';
+  if (normalized.includes('requested_review') || normalized.includes('overridden') || normalized.includes('violat')) return 'border-amber-400/20 bg-amber-400/[0.08] text-amber-300';
   if (normalized === 'created' || normalized === 'running') return 'border-sky-400/20 bg-sky-400/[0.08] text-sky-300';
   if (normalized.includes('approved') || normalized === 'reviewed_commented') return 'border-emerald-400/20 bg-emerald-400/[0.08] text-emerald-300';
   return 'border-slate-500/25 bg-slate-500/[0.08] text-slate-300';

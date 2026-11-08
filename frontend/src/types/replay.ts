@@ -14,6 +14,14 @@ export interface ReplayDifference {
   significance: string;
 }
 
+export type ReplayEventSource = 'recorded' | 'mocked_tool' | 'simulated' | 'unavailable';
+
+export interface ReplayEvent {
+  sequence: number;
+  event_type: string;
+  source: ReplayEventSource | string;
+}
+
 export interface ReplayRun {
   id: string;
   decision_id: string;
@@ -26,4 +34,7 @@ export interface ReplayRun {
   summary: string;
   differences: ReplayDifference[];
   conditions: ReplayCondition[];
+  trace_verified: boolean;
+  trace_verification_reason: string | null;
+  events: ReplayEvent[];
 }

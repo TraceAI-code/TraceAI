@@ -7,7 +7,7 @@ evidence files, governance policies, human reviews, and replay runs.
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, ForeignKey, JSON, String, Text
+from sqlalchemy import DateTime, ForeignKey, JSON, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.database import Base
@@ -254,6 +254,9 @@ class Policy(Base):
     """Represents a governance policy rule set with versioning."""
 
     __tablename__ = "policies"
+    __table_args__ = (
+        UniqueConstraint("name", "version", name="uq_policies_name_version"),
+    )
 
     # Unique identifier for the policy
     id: Mapped[uuid.UUID] = mapped_column(
@@ -316,6 +319,31 @@ class Policy(Base):
         default=lambda: datetime.now(timezone.utc),
     )
 
+    @property
+    def status(self) -> str:
+        """Compute the policy lifecycle status from its effective window."""
+        now = datetime.now(timezone.utc)
+
+        effective_from = self.effective_from
+        if effective_from.tzinfo is None:
+            effective_from = effective_from.replace(tzinfo=timezone.utc)
+        if effective_from > now:
+            return "scheduled"
+
+        if self.effective_to is not None:
+            effective_to = self.effective_to
+            if effective_to.tzinfo is None:
+                effective_to = effective_to.replace(tzinfo=timezone.utc)
+            if effective_to < now:
+                return "expired"
+
+        return "active"
+
+    @property
+    def updated_at(self) -> datetime:
+        """Policies are immutable, so the creation timestamp is the last update."""
+        return self.created_at
+
 
 class ReviewAction(Base):
     """Represents an audit action or sign-off submitted by a human reviewer."""
@@ -340,7 +368,7 @@ class ReviewAction(Base):
         nullable=False,
     )
 
-    # Action taken: approved, rejected, challenged, or commented
+    # Canonical action: approved, rejected, overridden, requested_review, or commented
     action: Mapped[str] = mapped_column(
         String(50),
         nullable=False,

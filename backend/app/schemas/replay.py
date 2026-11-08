@@ -44,6 +44,7 @@ class ToolCallDiff(BaseModel):
     replayed_args: dict[str, Any] = Field(default_factory=dict)
     args_match: bool = True
     result_match: bool = True
+    result_available: bool = True
 
 
 class DiffSummary(BaseModel):
@@ -60,7 +61,10 @@ class DiffSummary(BaseModel):
     reasoning_diff: list[str] = []
     policy_diff: dict[str, Any] = Field(default_factory=dict)
     metrics_diff: dict[str, Any] = Field(default_factory=dict)
+    trace_verified: bool = True
+    trace_verification_reason: str | None = None
     summary: str
+
 
 
 class ReplayResponse(BaseModel):

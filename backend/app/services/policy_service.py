@@ -44,6 +44,19 @@ def get_policy(
     return db.get(Policy, policy_id)
 
 
+def find_policy_by_name_version(
+    db: Session,
+    name: str,
+    version: str,
+) -> Policy | None:
+    """Find a policy by its unique (name, version) identity."""
+    return (
+        db.query(Policy)
+        .filter(Policy.name == name, Policy.version == version)
+        .first()
+    )
+
+
 def list_policies(
     db: Session,
     active_only: bool = True,

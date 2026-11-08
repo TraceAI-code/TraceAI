@@ -1,4 +1,4 @@
-import { api } from './apiClient';
+import { api, isNotFound } from './apiClient';
 import type { Evidence, LinkedDecision } from '../types/evidence';
 
 interface BackendEvidence {
@@ -47,7 +47,8 @@ export async function getEvidenceById(evidenceId: string): Promise<Evidence | nu
   try {
     const e = await api.get<BackendEvidenceDetail>(`/evidence/${evidenceId}`);
     return toEvidence(e, e);
-  } catch {
-    return null;
+  } catch (cause) {
+    if (isNotFound(cause)) return null;
+    throw cause;
   }
 }

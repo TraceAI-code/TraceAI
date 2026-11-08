@@ -1,4 +1,4 @@
-import { api } from './apiClient';
+import { api, isNotFound } from './apiClient';
 import type { DecisionDetail, AuditEvent, DecisionEvidenceReference, DecisionPolicyReference } from '../types/decisionDetail';
 
 interface BackendEvent {
@@ -116,7 +116,8 @@ export async function getDecisionDetail(decisionId: string): Promise<DecisionDet
           }
         : null,
     };
-  } catch {
-    return null;
+  } catch (cause) {
+    if (isNotFound(cause)) return null;
+    throw cause;
   }
 }

@@ -1,4 +1,4 @@
-import { api } from './apiClient';
+import { api, isNotFound } from './apiClient';
 import type { IntegrityInfo } from '../types/integrity';
 
 interface BackendIntegrity {
@@ -24,7 +24,8 @@ export async function getIntegrityForDecision(decisionId: string): Promise<Integ
       last_verified_at: new Date().toISOString(),
       events: [],
     };
-  } catch {
-    return null;
+  } catch (cause) {
+    if (isNotFound(cause)) return null;
+    throw cause;
   }
 }

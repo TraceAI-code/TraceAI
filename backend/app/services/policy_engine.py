@@ -6,8 +6,11 @@ and logs evaluation results directly into the decision's audit chain.
 """
 
 import re
+from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
+
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.db.models import Decision, Policy
@@ -39,35 +42,30 @@ class PolicyEngine:
 
         Checks decision input and extra payloads against rules, and optionally records
         a POLICY_EVALUATION event in the decision's audit chain.
+
+        When no policies are active the result is explicitly ``not_evaluated``
+        rather than ``passed``: an empty policy set is a governance gap, not a
+        compliance signal.
         """
         decision = self.db.get(Decision, decision_id)
         if not decision:
             return {"valid": False, "error": "Decision not found"}
 
         # Combine decision input with the target payload to evaluate
-        data_to_check = dict(decision.input_data)
+        data_to_check = dict(decision.input_data or {})
         if target_payload:
             data_to_check.update(target_payload)
 
+        # Tool names recorded in the decision chain, so blocked_tools rules can
+        # inspect actual tool usage rather than only the decision input.
+        tool_names = self._collect_tool_names(decision)
+
         # Retrieve relevant policies
-        if policy_id:
-            policy = self.db.get(Policy, policy_id)
-            policies = [policy] if policy else []
-        else:
-            # Query all registered policies
-            policies = self.db.query(Policy).all()
+        policies = self._get_policies(policy_id)
 
-        if not policies:
-            return {
-                "decision_id": str(decision_id),
-                "passed": True,
-                "evaluated_policies": 0,
-                "violations": [],
-            }
-
-        all_violations = []
-        evaluated_names = []
-        evaluated_details = []
+        all_violations: list[dict[str, Any]] = []
+        evaluated_names: list[str] = []
+        evaluated_details: list[dict[str, str]] = []
 
         # Evaluate rules for each policy
         for p in policies:
@@ -77,16 +75,22 @@ class PolicyEngine:
                 "name": p.name,
                 "version": p.version,
             })
-            violations = self._evaluate_rules(p.rules, data_to_check)
+            violations = self._evaluate_rules(p.rules, data_to_check, tool_names)
             for v in violations:
                 v["policy_id"] = str(p.id)
                 v["policy_name"] = p.name
                 v["policy_version"] = p.version
                 all_violations.append(v)
 
-        passed = len(all_violations) == 0
+        if not policies:
+            status = "not_evaluated"
+            passed: bool | None = None
+        else:
+            passed = len(all_violations) == 0
+            status = "passed" if passed else "violated"
 
-        # Record the evaluation result in the decision's audit chain if requested
+        # Record the evaluation result in the decision's audit chain if requested.
+        # This happens even for zero-policy evaluations so the gap is auditable.
         event_record = None
         if record_audit_event:
             recorder = EventRecorder(self.db)
@@ -94,7 +98,7 @@ class PolicyEngine:
                 decision,
                 event_type="POLICY_EVALUATION",
                 payload={
-                    "status": "passed" if passed else "violated",
+                    "status": status,
                     "policies_evaluated": evaluated_names,
                     "policy_details": evaluated_details,
                     "violations_count": len(all_violations),
@@ -103,7 +107,7 @@ class PolicyEngine:
             )
 
             # If policies were violated, mark the decision status
-            if not passed:
+            if all_violations:
                 decision.status = "policy_violated"
 
             self.db.commit()
@@ -112,12 +116,55 @@ class PolicyEngine:
         return {
             "decision_id": str(decision_id),
             "passed": passed,
+            "status": status,
             "evaluated_policies": evaluated_names,
+            "evaluated_policy_count": len(evaluated_names),
             "violations": all_violations,
             "event_id": str(event_record.id) if event_record else None,
         }
 
-    def _evaluate_rules(self, rules_spec: dict[str, Any], data: dict[str, Any]) -> list[dict[str, Any]]:
+    def _get_policies(self, policy_id: UUID | None) -> list[Policy]:
+        """Return the policies to evaluate.
+
+        An explicit ``policy_id`` is always evaluated (useful for re-running a
+        historical policy). Otherwise only currently effective policies apply.
+        """
+        if policy_id:
+            policy = self.db.get(Policy, policy_id)
+            return [policy] if policy else []
+
+        now = datetime.now(timezone.utc)
+        return (
+            self.db.query(Policy)
+            .filter(
+                Policy.effective_from <= now,
+                or_(Policy.effective_to.is_(None), Policy.effective_to >= now),
+            )
+            .all()
+        )
+
+    def _collect_tool_names(self, decision: Decision) -> list[str]:
+        """Collect distinct tool names invoked in the decision's audit chain."""
+        names: list[str] = []
+        for event in decision.events:
+            if event.event_type not in (
+                "TOOL_CALL_STARTED",
+                "TOOL_CALL_COMPLETED",
+                "TOOL_CALL_FAILED",
+            ):
+                continue
+            payload = event.payload or {}
+            name = payload.get("tool_name") or payload.get("tool")
+            if isinstance(name, str) and name and name not in names:
+                names.append(name)
+        return names
+
+    def _evaluate_rules(
+        self,
+        rules_spec: dict[str, Any],
+        data: dict[str, Any],
+        tool_names: list[str] | None = None,
+    ) -> list[dict[str, Any]]:
         """Evaluate a set of rules against the provided data dictionary."""
         violations = []
         rules = rules_spec.get("rules", [])
@@ -137,9 +184,9 @@ class PolicyEngine:
                 if v:
                     violations.append(v)
             elif rule_type == "blocked_tools":
-                v = self._check_blocked_tools(rule, data)
+                v = self._check_blocked_tools(rule, data, tool_names or [])
                 if v:
-                    violations.append(v)
+                    violations.extend(v)
 
         return violations
 
@@ -204,19 +251,35 @@ class PolicyEngine:
             }
         return None
 
-    def _check_blocked_tools(self, rule: dict, data: dict) -> dict | None:
+    def _check_blocked_tools(
+        self,
+        rule: dict,
+        data: dict,
+        tool_names: list[str],
+    ) -> list[dict]:
         """Check whether the agent called a tool that is prohibited by policy."""
-        blocked = rule.get("tools", [])
-        tool_name = data.get("tool_name") or data.get("tool")
+        blocked = set(rule.get("tools", []))
+        if not blocked:
+            return []
 
-        if tool_name and tool_name in blocked:
-            return {
-                "rule_id": rule.get("id", "blocked_tools"),
-                "type": "unauthorized_tool_call",
-                "tool_name": tool_name,
-                "message": f"Execution of prohibited tool '{tool_name}' was blocked by governance policy",
-            }
-        return None
+        candidates = list(tool_names)
+        for key in ("tool_name", "tool"):
+            value = data.get(key)
+            if isinstance(value, str) and value:
+                candidates.append(value)
+
+        violations: list[dict] = []
+        seen: set[str] = set()
+        for tool_name in candidates:
+            if tool_name in blocked and tool_name not in seen:
+                seen.add(tool_name)
+                violations.append({
+                    "rule_id": rule.get("id", "blocked_tools"),
+                    "type": "unauthorized_tool_call",
+                    "tool_name": tool_name,
+                    "message": f"Execution of prohibited tool '{tool_name}' was blocked by governance policy",
+                })
+        return violations
 
     def _flatten_strings(self, obj: Any, prefix: str = "") -> list[tuple[str, str]]:
         """Extract all string values and their key paths from nested structures."""

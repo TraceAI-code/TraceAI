@@ -116,8 +116,8 @@ function LoadingState() {
   return <div role="status" className="flex items-center gap-3 border border-line bg-panel px-5 py-8 text-sm text-slate-400"><LoaderCircle size={17} className="animate-spin text-accent" />Loading policy…</div>;
 }
 
-function ErrorState({ message }: { message: string }) {
-  return <div role="alert" className="border border-rose-400/20 bg-rose-400/[0.04] px-5 py-6"><h1 className="text-sm font-medium text-rose-200">Could not load policy</h1><p className="mt-1 text-xs text-slate-400">{message}</p><Link to="/policies" className="mt-4 inline-flex items-center gap-2 text-xs text-slate-300 hover:text-white"><ArrowLeft size={13} />Back to Policy Library</Link></div>;
+function ErrorState({ message, onRetry }: { message: string; onRetry: () => void }) {
+  return <div role="alert" className="border border-rose-400/20 bg-rose-400/[0.04] px-5 py-6"><h1 className="text-sm font-medium text-rose-200">Could not load policy</h1><p className="mt-1 text-xs text-slate-400">{message}</p><div className="mt-4 flex flex-wrap items-center gap-3"><button type="button" onClick={onRetry} className="inline-flex items-center gap-2 border border-line px-3 py-2 text-xs text-slate-300 hover:border-slate-600 hover:text-white">Retry</button><Link to="/policies" className="inline-flex items-center gap-2 text-xs text-slate-300 hover:text-white"><ArrowLeft size={13} />Back to Policy Library</Link></div></div>;
 }
 
 function NotFoundState() {
@@ -138,6 +138,7 @@ export default function PolicyDetailPage() {
   const [evaluations, setEvaluations] = useState<PolicyEvaluation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -157,7 +158,7 @@ export default function PolicyDetailPage() {
       .finally(() => { if (active) setLoading(false); });
 
     return () => { active = false; };
-  }, [policyId]);
+  }, [policyId, reloadKey]);
 
   return (
     <>
@@ -165,7 +166,7 @@ export default function PolicyDetailPage() {
         <Link to="/policies" className="inline-flex items-center gap-2 text-xs text-slate-400 outline-none hover:text-slate-100 focus-visible:ring-1 focus-visible:ring-accent/50"><ArrowLeft size={14} />Back to Policy Library</Link>
         <span className="inline-flex items-center gap-1.5 text-[9px] uppercase tracking-wider text-emerald-400"><span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />Live policy definition</span>
       </div>
-      {loading ? <LoadingState /> : error ? <ErrorState message={error} /> : policy ? (
+      {loading ? <LoadingState /> : error ? <ErrorState message={error} onRetry={() => setReloadKey((current) => current + 1)} /> : policy ? (
         <>
           <div className="mb-6 flex flex-col justify-between gap-4 border-b border-line pb-6 sm:flex-row sm:items-start">
             <div className="min-w-0">

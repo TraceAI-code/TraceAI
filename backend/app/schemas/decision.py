@@ -95,6 +95,8 @@ class DashboardStatsResponse(BaseModel):
     intact_chain_count: int
     warning_chain_count: int
     integrity_unavailable_count: int
+    verified_chain_count: int = 0
+    verification_failure_count: int = 0
 
 
 class AuditReportItemResponse(BaseModel):

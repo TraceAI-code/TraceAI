@@ -18,6 +18,8 @@ class ExecutionComparator:
         self,
         original_events: list[dict[str, Any]],
         replayed_events: list[dict[str, Any]],
+        trace_verified: bool = True,
+        trace_verification_reason: str | None = None,
     ) -> DiffSummary:
         """Compare original events with replayed events and calculate similarity."""
         action_diff = self._compare_actions(original_events, replayed_events)
@@ -38,22 +40,37 @@ class ExecutionComparator:
         )
 
         is_match = (
-            action_diff.match
+            trace_verified
+            and action_diff.match
             and tools_match
             and reasoning_ratio >= 0.95
             and policy_diff.get("match", True)
         )
 
-        status = "matched" if is_match else "diverged"
+        if not trace_verified:
+            status = "failed"
+        elif is_match:
+            status = "matched"
+        else:
+            status = "diverged"
 
-        if is_match:
-            summary = "Replay execution is an exact deterministic match with zero divergence."
+        if not trace_verified:
+            summary = (
+                "Recorded trace could not be verified: "
+                f"{trace_verification_reason or 'unknown integrity failure'}. "
+                "Replay comparison is not trustworthy until the chain is repaired."
+            )
+        elif is_match:
+            summary = (
+                "Deterministic reconstruction matches the recorded trace. "
+                "No AI model or external tool was executed."
+            )
         else:
             deviations = []
             if not action_diff.match:
                 deviations.append(f"Action diverged (Original: {action_diff.original} vs Replay: {action_diff.replayed})")
             if not tools_match:
-                deviations.append("Tool invocation sequence or arguments diverged")
+                deviations.append("Tool invocation sequence, arguments, or recorded outputs diverged")
             if reasoning_ratio < 0.95:
                 deviations.append(f"Reasoning text similarity is {round(reasoning_ratio * 100, 1)}%")
             if not policy_diff.get("match", True):
@@ -72,6 +89,8 @@ class ExecutionComparator:
             reasoning_diff=reasoning_diff,
             policy_diff=policy_diff,
             metrics_diff=metrics_diff,
+            trace_verified=trace_verified,
+            trace_verification_reason=trace_verification_reason,
             summary=summary,
         )
 
@@ -87,16 +106,33 @@ class ExecutionComparator:
         if not orig_act and not replay_act:
             orig_comp = self._find_first_event(orig_events, ["DECISION_COMPLETED"])
             replay_comp = self._find_first_event(replay_events, ["DECISION_COMPLETED"])
+            orig_payload = (orig_comp or {}).get("payload") or {}
+            replay_payload = (replay_comp or {}).get("payload") or {}
+            # Replay adds a ``replay_mode`` key; compare only the terminal status.
+            if orig_comp is None and replay_comp is None:
+                # Neither trace reached a terminal event. There is no action to
+                # contradict, but the absence itself is preserved on both sides.
+                match = True
+            else:
+                match = (
+                    orig_comp is not None
+                    and replay_comp is not None
+                    and orig_payload.get("status") == replay_payload.get("status")
+                )
             return ActionDiff(
-                original=orig_comp.get("payload") if orig_comp else None,
-                replayed=replay_comp.get("payload") if replay_comp else None,
-                match=True,
+                original=orig_payload or None,
+                replayed=replay_payload or None,
+                match=match,
             )
 
         orig_val = orig_act.get("payload") if orig_act else None
         replay_val = replay_act.get("payload") if replay_act else None
 
-        match = self._normalize_json(orig_val) == self._normalize_json(replay_val)
+        match = (
+            orig_act is not None
+            and replay_act is not None
+            and self._normalize_json(orig_val) == self._normalize_json(replay_val)
+        )
         return ActionDiff(original=orig_val, replayed=replay_val, match=match)
 
     def _compare_tools(
@@ -121,30 +157,41 @@ class ExecutionComparator:
             rt_payload = rt.get("payload", {})
 
             tool_name = ot_payload.get("tool_name") or rt_payload.get("tool_name") or f"tool_{i}"
-            ot_args = ot_payload.get("arguments", {})
-            rt_args = rt_payload.get("arguments", {})
+            ot_args = ot_payload.get("arguments", ot_payload.get("input", {}))
+            rt_args = rt_payload.get("arguments", rt_payload.get("input", {}))
 
-            orig_res = ot_payload.get("result")
-            replay_res = rt_payload.get("result")
+            orig_res = ot_payload.get("result", ot_payload.get("output"))
+            replay_res = rt_payload.get("result", rt_payload.get("output"))
+            result_available = bool(rt_payload.get("tool_result_available", True))
 
-            args_match = self._normalize_json(ot_args) == self._normalize_json(rt_args)
+            args_match = (
+                bool(ot)
+                and bool(rt)
+                and self._normalize_json(ot_args) == self._normalize_json(rt_args)
+            )
 
             if isinstance(orig_res, str) and "[Evidence stored" in orig_res:
-                res_match = replay_res is not None
+                res_match = bool(rt) and result_available and replay_res is not None
             else:
-                res_match = self._normalize_json(orig_res) == self._normalize_json(replay_res)
+                res_match = (
+                    bool(ot)
+                    and bool(rt)
+                    and result_available
+                    and self._normalize_json(orig_res) == self._normalize_json(replay_res)
+                )
 
-            item_match = args_match and res_match
+            item_match = bool(ot) and bool(rt) and args_match and res_match
             if not item_match:
                 all_matched = False
 
             details.append(
                 ToolCallDiff(
                     tool_name=tool_name,
-                    original_args=ot_args,
-                    replayed_args=rt_args,
+                    original_args=ot_args if isinstance(ot_args, dict) else {"value": ot_args},
+                    replayed_args=rt_args if isinstance(rt_args, dict) else {"value": rt_args},
                     args_match=args_match,
                     result_match=res_match,
+                    result_available=result_available,
                 )
             )
 

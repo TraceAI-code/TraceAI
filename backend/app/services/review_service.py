@@ -8,6 +8,23 @@ from app.schemas.review import ReviewCreate
 from app.services.event_recorder import EventRecorder
 
 
+# Canonical review action -> decision lifecycle status.
+# Every action moves the decision into a ``reviewed_*`` state so the register can
+# group human decisions consistently; ``DECISION_COMPLETED`` never overwrites it.
+REVIEW_STATUS_TRANSITIONS: dict[str, str] = {
+    "approved": "reviewed_approved",
+    "rejected": "reviewed_rejected",
+    "overridden": "reviewed_overridden",
+    "requested_review": "reviewed_requested_review",
+    "commented": "reviewed_commented",
+}
+
+
+def decision_status_for_review(action: str) -> str:
+    """Return the decision lifecycle status produced by a review action."""
+    return REVIEW_STATUS_TRANSITIONS.get(action, f"reviewed_{action}")
+
+
 def create_review(
     db: Session,
     decision_id: uuid.UUID,
@@ -38,7 +55,7 @@ def create_review(
         },
     )
 
-    decision.status = f"reviewed_{data.action}"
+    decision.status = decision_status_for_review(data.action)
 
     db.commit()
     db.refresh(review)

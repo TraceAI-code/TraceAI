@@ -98,15 +98,35 @@ def run_loan_agent(
 
         # Step 3: Evaluate governance policies
         print("\n--- [Step 3: Governance Policy Evaluation] ---")
+        policy_evaluated = False
+        evaluated_policy_count = 0
         try:
             policy_eval = ctx.evaluate_policies(
                 target_payload={"requested_amount": requested_amount, "credit_score": credit_score}
             )
-            print(f"  -> Policy evaluation: Passed = {policy_eval.get('passed', True)}")
+            policy_evaluated = True
+            evaluated_policy_count = policy_eval.get("evaluated_policy_count", 0)
+            evaluated_count = evaluated_policy_count
+            status = policy_eval.get("status", "unknown")
+            print(f"  -> Policy status: {status} ({evaluated_count} active policy/policies evaluated)")
+            if evaluated_count == 0:
+                print(
+                    "  -> WARNING: No active policies were registered. "
+                    "This decision was NOT policy-checked. Seed policies with: "
+                    "uv run python -m app.seed"
+                )
+            for policy_name in policy_eval.get("evaluated_policies", []):
+                print(f"     - {policy_name}")
             if policy_eval.get("violations"):
                 print(f"  -> Warning: {len(policy_eval['violations'])} policy violation(s) detected!")
         except Exception as e:
             print(f"  -> Policy evaluation note: {e}")
+
+        if not policy_evaluated:
+            print(
+                "  -> WARNING: Policy evaluation failed. This decision has no "
+                "trustworthy governance result."
+            )
 
         # Step 4: Record model reasoning and risk analysis
         print("\n--- [Step 4: Reasoning & Analysis] ---")
@@ -152,6 +172,13 @@ def run_loan_agent(
         print(f"  -> Final Decision Root Hash: {integrity.root_hash}")
         print("=" * 60)
         print("[SUCCESS] Agent decision fully captured, hashed, and verified!")
+        if evaluated_policy_count == 0:
+            print(
+                "[FAIL] No governance policy was evaluated for this decision. "
+                "The audit chain is intact, but the decision was not policy-checked. "
+                "Run: uv run python -m app.seed"
+            )
+            raise SystemExit(1)
     finally:
         client.close()
 

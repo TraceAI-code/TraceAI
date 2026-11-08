@@ -11,11 +11,11 @@ TraceAI is a comprehensive, tamper-evident audit platform and observability syst
 - **Tamper-Evident SHA-256 Audit Trails**: Deterministic cryptographic hash chaining links every event (`DECISION_CREATED`, `PLAN_GENERATED`, `TOOL_CALL`, `MODEL_INFERENCE`, `ACTION_TAKEN`) from genesis to root hash. Any unauthorized modification to historic events breaks the chain and is detected instantly.
 - **Content-Addressable Evidence Snapshots**: Large raw prompts, tool inputs/outputs, documents, and external API responses are captured, SHA-256 hashed, and deduplicated using local storage or Supabase Cloud Object Storage.
 - **Sandboxed Decision Replay & What-If Simulations**:
-  - **Deterministic Replay**: Re-executes the execution graph using recorded evidence snapshots to mock tool outputs without contacting external services or causing side effects.
-  - **What-If Simulation**: Test alternative inputs, modified tool returns, or simulated reasoning/actions to identify regressions or behavioral changes.
-  - **Semantic & AST Differencing**: Calculates similarity scores, highlights state differences, and generates human-readable audit reports.
-- **Governance Policy Engine**: Real-time evaluation of rule-based constraints (e.g., credit thresholds, required evidence, rate caps, prohibited fields) against agent inputs, outputs, and intermediate states.
-- **Human-in-the-Loop Review & Governance**: Allows auditors, risk managers, and compliance teams to sign off on decisions, log formal audit notes, and track compliance status (`APPROVED`, `REJECTED`, `FLAGGED_FOR_REVIEW`).
+  - **Deterministic Replay**: Reconstructs the recorded execution from its audit chain and evidence snapshots. It does not re-execute the AI model; recorded tool outputs are injected from the evidence store, and missing snapshots are reported as unavailable.
+  - **What-If Simulation**: Applies input overrides, re-evaluates governance policies, and marks recorded tool outputs as stale instead of inventing new ones.
+  - **Trace-First Differencing**: Verifies the recorded hash chain before claiming a match, then highlights action, tool, reasoning, and policy differences.
+- **Governance Policy Engine**: Real-time evaluation of rule-based constraints (e.g., credit thresholds, required evidence, rate caps, prohibited fields) against agent inputs, outputs, and intermediate states. A decision with no active policies is reported as `not_evaluated`, never `passed`.
+- **Human-in-the-Loop Review & Governance**: Allows auditors, risk managers, and compliance teams to sign off on decisions with a canonical action (`approved`, `rejected`, `overridden`, `requested_review`, `commented`) and an attributed reviewer identity.
 - **Developer-Friendly Python SDK (`traceai-sdk`)**: Zero-overhead instrumentation for custom agents or frameworks like LangChain and LangGraph via context managers and `@instrument_tool` decorators.
 - **Modern Audit UI**: Interactive React dashboard for visualizing execution graphs, inspecting evidence blobs, comparing replay diffs, managing policies, and tracking system-wide audit metrics.
 
@@ -167,9 +167,15 @@ uv sync
 # Run database migrations
 uv run alembic upgrade head
 
+# Seed the baseline governance policies (idempotent)
+uv run python -m app.seed
+
 # Start the FastAPI development server
 uv run uvicorn app.main:app --app-dir backend --reload --port 8000
 ```
+
+> A fresh database has no policies. Until you run the seed (or register your own), decisions are
+> recorded as `not_evaluated` — governance explicitly did not run, rather than silently passing.
 
 The backend API will be running at [http://127.0.0.1:8000](http://127.0.0.1:8000). Interactive Swagger documentation is available at [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs).
 
@@ -254,8 +260,14 @@ def fetch_bureau_records(applicant_id: str) -> dict:
 TraceAI includes a complete reference agent demonstrating loan underwriting, tool instrumentation, policy evaluation, and cryptographic verification:
 
 ```bash
+# Ensure at least one active policy exists (see Backend Setup)
+uv run python -m app.seed
+
 uv run python examples/sample_agent/agent.py --endpoint http://127.0.0.1:8000
 ```
+
+The agent prints the number of policies it evaluated and exits non-zero when zero policies were
+active, so a "successful" run never hides an ungoverned decision.
 
 ---
 

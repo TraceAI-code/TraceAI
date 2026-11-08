@@ -1,5 +1,5 @@
-import { api } from './apiClient';
-import type { ReplayCondition, ReplayDifference, ReplayRun } from '../types/replay';
+import { api, isNotFound } from './apiClient';
+import type { ReplayCondition, ReplayDifference, ReplayEvent, ReplayRun } from '../types/replay';
 
 interface BackendDiffSummary {
   is_match: boolean;
@@ -18,12 +18,22 @@ interface BackendDiffSummary {
     replayed_args: Record<string, unknown>;
     args_match: boolean;
     result_match: boolean;
+    result_available?: boolean;
   }>;
   reasoning_similarity_ratio: number;
   reasoning_diff: string[];
   policy_diff: Record<string, unknown>;
   metrics_diff: Record<string, unknown>;
+  trace_verified?: boolean;
+  trace_verification_reason?: string | null;
   summary: string;
+}
+
+interface BackendReplayEvent {
+  sequence_number: number;
+  event_type: string;
+  source?: string;
+  payload?: Record<string, unknown>;
 }
 
 interface BackendReplay {
@@ -33,7 +43,7 @@ interface BackendReplay {
   replay_mode: string;
   similarity_score: number;
   diff_summary: BackendDiffSummary;
-  replayed_events: Array<Record<string, unknown>>;
+  replayed_events: BackendReplayEvent[];
   created_at: string;
 }
 
@@ -67,6 +77,22 @@ function toReplayRun(r: BackendReplay): ReplayRun {
       significance: `Reasoning similarity: ${Math.round((diff.reasoning_similarity_ratio ?? 0) * 100)}%`,
     });
   }
+  const unavailableTools = (diff.tool_details ?? []).filter((tool) => tool.result_available === false);
+  if (unavailableTools.length) {
+    differences.push({
+      field: 'Missing tool snapshots',
+      original_value: unavailableTools.map((tool) => tool.tool_name).join(', '),
+      replay_value: 'unavailable',
+      significance:
+        'The recorded tool output could not be recovered from the evidence store. It was not silently copied.',
+    });
+  }
+
+  const events: ReplayEvent[] = (r.replayed_events ?? []).map((event) => ({
+    sequence: event.sequence_number,
+    event_type: event.event_type,
+    source: event.source ?? 'recorded',
+  }));
 
   return {
     id: r.id,
@@ -80,6 +106,9 @@ function toReplayRun(r: BackendReplay): ReplayRun {
     summary: diff.summary ?? '',
     differences,
     conditions,
+    trace_verified: diff.trace_verified ?? true,
+    trace_verification_reason: diff.trace_verification_reason ?? null,
+    events,
   };
 }
 
@@ -97,8 +126,9 @@ export async function getReplayById(replayId: string): Promise<ReplayRun | null>
   try {
     const r = await api.get<BackendReplay>(`/decisions/replays/run/${replayId}`);
     return toReplayRun(r);
-  } catch {
-    return null;
+  } catch (cause) {
+    if (isNotFound(cause)) return null;
+    throw cause;
   }
 }
 
@@ -133,6 +163,8 @@ function parseConditionValue(condition: ReplayCondition): unknown {
 export async function createWhatIfReplay(
   decisionId: string,
   inputConditions: ReplayCondition[],
+  simulatedAction: Record<string, unknown> | null = null,
+  simulatedReasoning: string | null = null,
 ): Promise<ReplayRun> {
   // Convert conditions to an override_inputs dict, preserving native types.
   const overrideInputs: Record<string, unknown> = {};
@@ -143,6 +175,8 @@ export async function createWhatIfReplay(
   const r = await api.post<BackendReplay>(`/decisions/${decisionId}/replay`, {
     mode: 'what_if',
     override_inputs: overrideInputs,
+    simulated_action: simulatedAction,
+    simulated_reasoning: simulatedReasoning?.trim() || null,
     mock_tools: true,
   });
   return toReplayRun(r);

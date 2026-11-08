@@ -11,6 +11,8 @@ export interface DashboardData {
   intactChainCount: number;
   warningChainCount: number;
   integrityUnavailableCount: number;
+  verifiedChainCount: number;
+  verificationFailureCount: number;
 }
 
 interface BackendDashboardStats {
@@ -31,6 +33,8 @@ interface BackendDashboardStats {
   intact_chain_count: number;
   warning_chain_count: number;
   integrity_unavailable_count: number;
+  verified_chain_count?: number;
+  verification_failure_count?: number;
 }
 
 /**
@@ -59,5 +63,7 @@ export async function getDashboardData(): Promise<DashboardData> {
     intactChainCount: stats.intact_chain_count,
     warningChainCount: stats.warning_chain_count,
     integrityUnavailableCount: stats.integrity_unavailable_count,
+    verifiedChainCount: stats.verified_chain_count ?? stats.intact_chain_count,
+    verificationFailureCount: stats.verification_failure_count ?? 0,
   };
 }

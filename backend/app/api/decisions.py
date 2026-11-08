@@ -73,6 +73,18 @@ def get_dashboard_stats(
     warning_count = db.query(func.count(Decision.id)).filter(Decision.status.in_(["policy_violated", "failed", "compromised"])).scalar() or 0
     unavailable_count = max(0, total_decisions_count - intact_count - warning_count)
 
+    # 6. Batch-verify the recent decision window. This is an actual hash-chain
+    # recomputation, not a `root_hash IS NOT NULL` inference, so the dashboard
+    # surfaces tampering as a verification failure.
+    verified_chain_count = 0
+    verification_failure_count = 0
+    for decision in decisions_list:
+        verification = verify_decision_integrity(db, decision.id)
+        if verification.get("valid"):
+            verified_chain_count += 1
+        else:
+            verification_failure_count += 1
+
     return DashboardStatsResponse(
         decisions=decisions_list,
         evidence_count=total_evidence,
@@ -83,6 +95,8 @@ def get_dashboard_stats(
         intact_chain_count=intact_count,
         warning_chain_count=warning_count,
         integrity_unavailable_count=unavailable_count,
+        verified_chain_count=verified_chain_count,
+        verification_failure_count=verification_failure_count,
     )
 
 
@@ -279,7 +293,7 @@ def submit_review(
     data: ReviewCreate,
     db: Session = Depends(get_db),
 ):
-    """Submit a human auditor review (approved, rejected, challenged, or commented)."""
+    """Submit a human auditor review (approved, rejected, overridden, requested_review, or commented)."""
     review = create_review(db, decision_id, data)
     if not review:
         raise HTTPException(status_code=404, detail="Decision not found")

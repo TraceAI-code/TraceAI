@@ -9,12 +9,14 @@ import {
   FileText,
   LoaderCircle,
   Link2,
+  Download,
   ReceiptText,
   type LucideIcon,
 } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
 import type { Evidence } from '../types/evidence';
 import { getEvidenceById } from '../services/evidenceService';
+import { apiUrl } from '../services/apiClient';
 
 const evidenceTypeIcons: Record<string, LucideIcon> = {
   DOCUMENT: FileText,
@@ -46,7 +48,7 @@ function statusStyle(status: string): string {
   const normalized = status.toLowerCase();
   if (normalized.startsWith('reviewed') || normalized === 'approved') return 'border-emerald-400/20 bg-emerald-400/[0.08] text-emerald-300';
   if (normalized.includes('reject')) return 'border-rose-400/20 bg-rose-400/[0.08] text-rose-300';
-  if (normalized.includes('challeng')) return 'border-amber-400/20 bg-amber-400/[0.08] text-amber-300';
+  if (normalized.includes('requested_review')) return 'border-amber-400/20 bg-amber-400/[0.08] text-amber-300';
   if (normalized === 'created' || normalized === 'running') return 'border-sky-400/20 bg-sky-400/[0.08] text-sky-300';
   return 'border-slate-500/25 bg-slate-500/[0.08] text-slate-300';
 }
@@ -94,7 +96,14 @@ function EvidenceContent({ evidence }: { evidence: Evidence }) {
           <FileText size={14} className="text-slate-500" />
           <h2 className="text-xs font-medium text-slate-300">Content / Evidence</h2>
         </div>
-        <span className="flex items-center gap-3">
+        <span className="flex flex-wrap items-center justify-end gap-3">
+          <a
+            href={apiUrl(`/evidence/${evidence.id}/content`)}
+            download={`traceai-evidence-${evidence.id}`}
+            className="inline-flex items-center gap-1.5 border border-line px-2 py-1 text-[9px] text-slate-300 outline-none hover:border-slate-600 hover:text-white focus-visible:ring-1 focus-visible:ring-accent/50"
+          >
+            <Download size={11} />Download
+          </a>
           {evidence.content_verified !== undefined && (
             <span className={`font-mono text-[9px] ${evidence.content_verified ? 'text-emerald-300/80' : 'text-rose-300/80'}`}>
               {evidence.content_verified ? 'HASH VERIFIED' : 'HASH MISMATCH'}
@@ -123,12 +132,15 @@ function LoadingState() {
   return <div role="status" className="flex items-center gap-3 border border-line bg-panel px-5 py-8 text-sm text-slate-400"><LoaderCircle size={17} className="animate-spin text-accent" />Loading evidence…</div>;
 }
 
-function ErrorState({ message }: { message: string }) {
+function ErrorState({ message, onRetry }: { message: string; onRetry: () => void }) {
   return (
     <div role="alert" className="border border-rose-400/20 bg-rose-400/[0.04] px-5 py-6">
       <h1 className="text-sm font-medium text-rose-200">Could not load evidence</h1>
       <p className="mt-1 text-xs text-slate-400">{message}</p>
-      <Link to="/evidence" className="mt-4 inline-flex items-center gap-2 text-xs text-slate-300 hover:text-white"><ArrowLeft size={13} />Back to evidence</Link>
+      <div className="mt-4 flex flex-wrap items-center gap-3">
+        <button type="button" onClick={onRetry} className="inline-flex items-center gap-2 border border-line px-3 py-2 text-xs text-slate-300 hover:border-slate-600 hover:text-white">Retry</button>
+        <Link to="/evidence" className="inline-flex items-center gap-2 text-xs text-slate-300 hover:text-white"><ArrowLeft size={13} />Back to evidence</Link>
+      </div>
     </div>
   );
 }
@@ -232,6 +244,7 @@ export default function EvidenceDetailPage() {
   const [evidence, setEvidence] = useState<Evidence | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -245,7 +258,7 @@ export default function EvidenceDetailPage() {
       .finally(() => { if (active) setLoading(false); });
 
     return () => { active = false; };
-  }, [evidenceId]);
+  }, [evidenceId, reloadKey]);
 
   return (
     <>
@@ -253,7 +266,7 @@ export default function EvidenceDetailPage() {
         <Link to="/evidence" className="inline-flex items-center gap-2 text-xs text-slate-400 outline-none hover:text-slate-100 focus-visible:ring-1 focus-visible:ring-accent/50"><ArrowLeft size={14} />Back to evidence</Link>
         <span className="inline-flex items-center gap-1.5 text-[9px] uppercase tracking-wider text-emerald-400"><span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />Live evidence artifact</span>
       </div>
-      {loading ? <LoadingState /> : error ? <ErrorState message={error} /> : evidence ? <EvidenceDetail key={evidence.id} evidence={evidence} /> : <NotFoundState />}
+      {loading ? <LoadingState /> : error ? <ErrorState message={error} onRetry={() => setReloadKey((current) => current + 1)} /> : evidence ? <EvidenceDetail key={evidence.id} evidence={evidence} /> : <NotFoundState />}
     </>
   );
 }

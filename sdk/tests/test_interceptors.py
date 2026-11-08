@@ -153,3 +153,46 @@ def test_langchain_callback_handler(test_client):
     assert integrity.valid is True
     assert integrity.event_count == 6
     client.close()
+
+
+def test_langchain_tool_events_support_replay(test_client):
+    """Tool events must carry the name, arguments, and evidence id replay needs."""
+    with DecisionContext(
+        agent_id="langchain_replay_agent",
+        agent_version="1.0.0",
+        http_client=test_client,
+    ) as ctx:
+        handler = TraceAICallbackHandler(ctx)
+        run_id = uuid.uuid4()
+
+        handler.on_tool_start(
+            serialized={"name": "credit_bureau_report"},
+            input_str='{"bureau": "Equifax", "applicant": "Sarah Connor"}',
+            run_id=run_id,
+        )
+        # Output over 1 KB forces a content-addressable evidence snapshot.
+        handler.on_tool_end(
+            output={"score": 750, "notes": "x" * 2000},
+            run_id=run_id,
+        )
+
+    detail = test_client.get(f"/api/v1/decisions/{ctx.decision_id}").json()
+    completed = [
+        event
+        for event in detail["events"]
+        if event["event_type"] == "TOOL_CALL_COMPLETED"
+    ]
+    assert len(completed) == 1
+
+    payload = completed[0]["payload"]
+    assert payload["tool_name"] == "credit_bureau_report"
+    assert payload["arguments"] == {"bureau": "Equifax", "applicant": "Sarah Connor"}
+    assert len(payload["evidence_ids"]) == 1
+
+    evidence = test_client.get(f"/api/v1/evidence/{payload['evidence_ids'][0]}").json()
+    assert evidence["type"] == "tool_output_credit_bureau_report"
+    assert evidence["metadata_json"]["tool_name"] == "credit_bureau_report"
+    assert evidence["metadata_json"]["arguments"] == {
+        "bureau": "Equifax",
+        "applicant": "Sarah Connor",
+    }

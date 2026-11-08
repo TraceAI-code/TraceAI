@@ -71,7 +71,7 @@ function getOriginalResult(decision: Decision, detail: DecisionDetail | null): s
   const status = decision.status.toLowerCase();
   if (status.includes('approved')) return 'APPROVED';
   if (status.includes('rejected')) return 'REJECTED';
-  if (status.includes('challenged') || status.includes('policy_violated')) return 'REVIEW_REQUIRED';
+  if (status.includes('requested_review') || status.includes('policy_violated')) return 'REVIEW_REQUIRED';
   return status ? decision.status.toUpperCase() : 'UNKNOWN';
 }
 
@@ -114,6 +114,10 @@ function NoReplaySelected() {
 }
 
 function ReplayResult({ replay, decision, detail }: { replay: ReplayRun; decision: Decision; detail: DecisionDetail | null }) {
+  const sourceCounts = replay.events.reduce<Record<string, number>>((counts, event) => {
+    counts[event.source] = (counts[event.source] ?? 0) + 1;
+    return counts;
+  }, {});
 
   return (
     <section className="border border-line bg-panel">
@@ -121,11 +125,23 @@ function ReplayResult({ replay, decision, detail }: { replay: ReplayRun; decisio
         <div className="min-w-0">
           <p className="mb-1 font-mono text-[9px] uppercase tracking-[0.15em] text-accent/75">Replay result · {humanize(replay.mode)}</p>
           <h2 className="break-all font-mono text-[10px] text-slate-500">{replay.id}</h2>
+          <p className="mt-1 text-[10px] text-slate-500">Reconstructed from the recorded trace. No AI model or external tool was executed.</p>
         </div>
-        <span className={`inline-flex w-fit items-center gap-1.5 border px-2 py-1 text-[9px] uppercase tracking-wider ${['COMPLETED', 'MATCHED'].includes(replay.status) ? 'border-emerald-400/20 bg-emerald-400/[0.06] text-emerald-300' : replay.status === 'FAILED' ? 'border-rose-400/20 bg-rose-400/[0.06] text-rose-300' : 'border-amber-400/20 bg-amber-400/[0.06] text-amber-300'}`}>
-          {['COMPLETED', 'MATCHED'].includes(replay.status) ? <Check size={11} /> : <Clock3 size={11} />}{humanize(replay.status)}
-        </span>
+        <div className="flex flex-wrap items-start gap-2">
+          <span className={`inline-flex w-fit items-center gap-1.5 border px-2 py-1 text-[9px] uppercase tracking-wider ${replay.trace_verified ? 'border-emerald-400/20 bg-emerald-400/[0.06] text-emerald-300' : 'border-rose-400/20 bg-rose-400/[0.06] text-rose-300'}`}>
+            {replay.trace_verified ? <Check size={11} /> : <X size={11} />}{replay.trace_verified ? 'Trace verified' : 'Trace failed'}
+          </span>
+          <span className={`inline-flex w-fit items-center gap-1.5 border px-2 py-1 text-[9px] uppercase tracking-wider ${['COMPLETED', 'MATCHED'].includes(replay.status) ? 'border-emerald-400/20 bg-emerald-400/[0.06] text-emerald-300' : replay.status === 'FAILED' ? 'border-rose-400/20 bg-rose-400/[0.06] text-rose-300' : 'border-amber-400/20 bg-amber-400/[0.06] text-amber-300'}`}>
+            {['COMPLETED', 'MATCHED'].includes(replay.status) ? <Check size={11} /> : <Clock3 size={11} />}{humanize(replay.status)}
+          </span>
+        </div>
       </div>
+
+      {!replay.trace_verified && (
+        <p role="alert" className="border-b border-rose-400/20 bg-rose-400/[0.04] px-4 py-3 text-[11px] leading-5 text-rose-200 sm:px-5">
+          The recorded hash chain could not be verified{replay.trace_verification_reason ? `: ${replay.trace_verification_reason}` : '.'} This comparison is not trustworthy until the trace is repaired.
+        </p>
+      )}
 
       <div className="grid gap-3 p-4 lg:grid-cols-[minmax(0,1fr)_28px_minmax(0,1fr)] lg:items-center lg:p-5">
         <ResultPanel label="Original decision" result={replay.original_result} subtitle={decision.id} />
@@ -195,6 +211,38 @@ function ReplayResult({ replay, decision, detail }: { replay: ReplayRun; decisio
           </div>
         </div>
 
+        <div className="mt-5 border-t border-line pt-4">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <h3 className="text-[10px] font-medium uppercase tracking-wider text-slate-500">Reconstruction provenance</h3>
+            <span className="font-mono text-[9px] text-slate-600">{replay.events.length} replayed events</span>
+          </div>
+          <div className="mb-3 flex flex-wrap gap-x-4 gap-y-1 text-[10px]">
+            <span className="text-slate-400"><span className="font-mono text-slate-300">{sourceCounts['recorded'] ?? 0}</span> recorded</span>
+            <span className="text-slate-400"><span className="font-mono text-slate-300">{sourceCounts['mocked_tool'] ?? 0}</span> mocked from evidence</span>
+            <span className="text-slate-400"><span className="font-mono text-slate-300">{sourceCounts['simulated'] ?? 0}</span> simulated</span>
+            <span className={sourceCounts['unavailable'] ? 'text-rose-300' : 'text-slate-400'}><span className="font-mono">{sourceCounts['unavailable'] ?? 0}</span> unavailable</span>
+          </div>
+          {replay.events.length ? (
+            <ol className="space-y-1.5">
+              {replay.events.map((event) => {
+                const tone = event.source === 'mocked_tool'
+                  ? 'border-sky-400/20 bg-sky-400/[0.06] text-sky-300'
+                  : event.source === 'simulated'
+                    ? 'border-amber-400/20 bg-amber-400/[0.06] text-amber-300'
+                    : event.source === 'unavailable'
+                      ? 'border-rose-400/20 bg-rose-400/[0.06] text-rose-300'
+                      : 'border-slate-500/25 bg-slate-500/[0.06] text-slate-400';
+                return (
+                  <li key={`${event.sequence}-${event.event_type}`} className="flex min-w-0 flex-wrap items-center justify-between gap-2 border border-line/60 px-3 py-2">
+                    <span className="min-w-0 text-[10px] text-slate-400"><span className="mr-2 font-mono text-slate-600">#{event.sequence}</span>{humanize(event.event_type)}</span>
+                    <span className={`inline-flex shrink-0 border px-1.5 py-0.5 font-mono text-[8px] uppercase tracking-wider ${tone}`}>{humanize(event.source)}</span>
+                  </li>
+                );
+              })}
+            </ol>
+          ) : <p className="text-[10px] text-slate-500">No replayed events were produced.</p>}
+        </div>
+
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-3 text-[10px] text-slate-500">
           <span>Created {formatTimestamp(replay.created_at)}{replay.completed_at ? ` · completed ${formatTimestamp(replay.completed_at)}` : ''}</span>
           <Link to={`/decisions/${decision.id}`} className="inline-flex items-center gap-1.5 text-blue-300/80 outline-none hover:text-blue-200 focus-visible:ring-1 focus-visible:ring-accent/50">Open original decision <ArrowRight size={12} /></Link>
@@ -215,9 +263,13 @@ export default function ReplayPage() {
   const [detailError, setDetailError] = useState<string | null>(null);
   const [mode, setMode] = useState<ReplayMode>('DETERMINISTIC');
   const [whatIfValues, setWhatIfValues] = useState<Record<string, string>>({});
+  const [simulatedActionType, setSimulatedActionType] = useState('');
+  const [simulatedActionReason, setSimulatedActionReason] = useState('');
+  const [simulatedReasoning, setSimulatedReasoning] = useState('');
   const [activeReplay, setActiveReplay] = useState<ReplayRun | null>(null);
   const [history, setHistory] = useState<ReplayRun[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
   const [runLoading, setRunLoading] = useState(false);
   const [runError, setRunError] = useState<string | null>(null);
 
@@ -246,6 +298,7 @@ export default function ReplayPage() {
     setActiveReplay(null);
     setDetailError(null);
     setHistory([]);
+    setHistoryError(null);
     if (!selectedDecisionId) {
       setDetailLoading(false);
       setHistoryLoading(false);
@@ -261,6 +314,7 @@ export default function ReplayPage() {
       .finally(() => { if (active) setDetailLoading(false); });
     getReplayRunsForDecision(selectedDecisionId)
       .then((runs) => { if (active) setHistory(runs); })
+      .catch((cause: unknown) => { if (active) setHistoryError(cause instanceof Error ? cause.message : 'Could not load replay history.'); })
       .finally(() => { if (active) setHistoryLoading(false); });
 
     return () => { active = false; };
@@ -291,6 +345,13 @@ export default function ReplayPage() {
                 value_type: condition.valueType,
               };
             }),
+            simulatedActionType
+              ? {
+                  action: simulatedActionType,
+                  ...(simulatedActionReason.trim() ? { reason: simulatedActionReason.trim() } : {}),
+                }
+              : null,
+            simulatedReasoning.trim() || null,
           );
       setActiveReplay(run);
       setHistory(await getReplayRunsForDecision(selectedDecision.id));
@@ -316,8 +377,8 @@ export default function ReplayPage() {
       <div className="mb-6 flex items-start gap-3 border border-emerald-400/20 bg-emerald-400/[0.04] px-4 py-3">
         <ShieldCheck size={15} className="mt-0.5 shrink-0 text-emerald-400" />
         <div>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.13em] text-emerald-300">Live Replay & Simulation Engine</p>
-          <p className="mt-1 text-[11px] leading-5 text-slate-400">Replays are executed dynamically in the backend sandbox using recorded tool responses from the Evidence Store.</p>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.13em] text-emerald-300">Trace reconstruction, not model re-execution</p>
+          <p className="mt-1 text-[11px] leading-5 text-slate-400">Replays reconstruct the recorded decision from its audit chain and evidence snapshots. No AI model or external tool is executed; missing snapshots are reported as unavailable.</p>
         </div>
       </div>
 
@@ -427,6 +488,45 @@ export default function ReplayPage() {
                   );
                 })}
               </div>
+              <div className="border-t border-line px-4 py-4 sm:px-5">
+                <h3 className="text-[10px] font-medium uppercase tracking-wider text-slate-500">Simulated outcome (optional)</h3>
+                <p className="mt-1 text-[10px] leading-4 text-slate-600">These fields mark what-if reasoning and outcome as simulated in the replay diff. They do not re-execute an AI model.</p>
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  <label className="block text-[10px] text-slate-500">Simulated action
+                    <select
+                      aria-label="Simulated action"
+                      value={simulatedActionType}
+                      onChange={(event) => { setSimulatedActionType(event.target.value); setActiveReplay(null); }}
+                      className="mt-1.5 h-10 w-full border border-line bg-shell px-3 text-xs text-slate-300 outline-none focus:border-accent/50 focus-visible:ring-1 focus-visible:ring-accent/30 sm:h-9"
+                    >
+                      <option value="">Keep the recorded action</option>
+                      <option value="APPROVE_LOAN">Approve loan</option>
+                      <option value="REJECT_LOAN">Reject loan</option>
+                      <option value="REQUEST_REVIEW">Request review</option>
+                    </select>
+                  </label>
+                  <label className="block text-[10px] text-slate-500">Action reason
+                    <input
+                      aria-label="Simulated action reason"
+                      value={simulatedActionReason}
+                      onChange={(event) => { setSimulatedActionReason(event.target.value); setActiveReplay(null); }}
+                      placeholder="Why would the outcome change?"
+                      disabled={!simulatedActionType}
+                      className="mt-1.5 h-10 w-full border border-line bg-shell px-3 text-xs text-slate-300 outline-none placeholder:text-slate-600 focus:border-accent/50 focus-visible:ring-1 focus-visible:ring-accent/30 disabled:opacity-50 sm:h-9"
+                    />
+                  </label>
+                </div>
+                <label className="mt-3 block text-[10px] text-slate-500">Simulated reasoning
+                  <textarea
+                    aria-label="Simulated reasoning"
+                    value={simulatedReasoning}
+                    onChange={(event) => { setSimulatedReasoning(event.target.value); setActiveReplay(null); }}
+                    rows={2}
+                    placeholder="Optional counterfactual rationale recorded as simulated reasoning."
+                    className="mt-1.5 w-full resize-y border border-line bg-shell px-3 py-2 text-xs leading-5 text-slate-300 outline-none placeholder:text-slate-600 focus:border-accent/50 focus-visible:ring-1 focus-visible:ring-accent/30"
+                  />
+                </label>
+              </div>
               <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line px-4 py-3 sm:px-5"><span className="text-[10px] text-slate-500">{changedConditionCount ? `${changedConditionCount} condition${changedConditionCount === 1 ? '' : 's'} changed` : 'No conditions changed'}</span><button type="button" onClick={() => { setWhatIfValues(Object.fromEntries(conditionFields.map((condition) => [condition.name, condition.value]))); setActiveReplay(null); }} className="min-h-9 text-[10px] text-slate-400 outline-none hover:text-slate-200 focus-visible:ring-1 focus-visible:ring-accent/50">Reset conditions</button></div>
             </section>
           )}
@@ -442,7 +542,7 @@ export default function ReplayPage() {
 
           <section className="border border-line bg-panel">
             <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-3 sm:px-5"><div><p className="mb-1 font-mono text-[9px] uppercase tracking-[0.14em] text-slate-600">Selected decision</p><h2 className="text-xs font-medium text-slate-300">Replay history</h2></div><span className="font-mono text-[10px] text-slate-500">{history.length} runs</span></div>
-            {historyLoading ? <div className="px-5 py-4"><LoadingState label="Loading replay history…" /></div> : history.length ? (
+            {historyLoading ? <div className="px-5 py-4"><LoadingState label="Loading replay history…" /></div> : historyError ? <div role="alert" className="px-5 py-4 text-xs text-rose-300">Could not load replay history: {historyError}</div> : history.length ? (
               <ul className="divide-y divide-line/70">{history.map((run) => <li key={run.id} className={`min-w-0 p-4 sm:px-5 ${activeReplay?.id === run.id ? 'bg-white/[0.025]' : ''}`}><div className="flex flex-wrap items-start justify-between gap-3"><div className="min-w-0"><Link to={`/replay/${run.id}`} className="break-all font-mono text-[10px] text-blue-300/80 outline-none hover:text-blue-200 focus-visible:ring-1 focus-visible:ring-accent/50">{run.id}</Link><p className="mt-1 break-all font-mono text-[9px] text-slate-600">Decision · {run.decision_id}</p></div><span className="text-[10px] text-slate-500">{formatTimestamp(run.created_at)}</span></div><div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-line/70 pt-3"><span className="text-[10px] text-slate-400">{humanize(run.mode)}</span><span className="text-[10px] text-slate-500">{humanize(run.status)}</span><div className="flex flex-wrap items-center gap-2"><span className="text-[9px] text-slate-600">Original</span><ResultBadge result={run.original_result} /><ArrowRight size={12} className="text-slate-600" /><span className="text-[9px] text-slate-600">Replay</span><ResultBadge result={run.replay_result} /></div><button type="button" onClick={() => { void selectHistoricalReplay(run); }} className="ml-auto min-h-9 border border-line px-3 text-[10px] text-slate-400 outline-none hover:border-slate-600 hover:text-slate-200 focus-visible:ring-1 focus-visible:ring-accent/50">Load comparison</button></div></li>)}</ul>
             ) : <div className="px-5 py-7 text-xs text-slate-500">No replay history for this decision yet. Run a replay to create a replay record.</div>}
           </section>

@@ -13,7 +13,6 @@ import {
   LoaderCircle,
   LockKeyhole,
   Scale,
-
   Sparkles,
   Waypoints,
   type LucideIcon,
@@ -26,7 +25,7 @@ import type { ReviewAction, ReviewActionKind } from '../types/review';
 import { getDecisionDetail } from '../services/decisionDetailService';
 import { getEvaluationsForDecision, getPolicyById } from '../services/policyService';
 import { getIntegrityForDecision } from '../services/integrityService';
-import { getReviewsForDecision, submitReview } from '../services/reviewService';
+import { getReviewsForDecision, getReviewerId, submitReview } from '../services/reviewService';
 
 const eventPresentation: Record<string, { title: string; description: string; icon: LucideIcon }> = {
   INPUT_RECEIVED: {
@@ -91,10 +90,10 @@ function formatTimestamp(value: string | null): string {
 function statusStyle(status: string): string {
   const normalized = status.toLowerCase();
   if (normalized.includes('reject') || normalized === 'failed') return 'border-rose-400/20 bg-rose-400/[0.08] text-rose-300';
-  if (normalized.startsWith('reviewed') || normalized === 'approved' || normalized === 'passed' || normalized === 'chain_intact') {
+  if (normalized.includes('requested_review') || normalized.includes('overridden') || normalized.includes('violat') || normalized === 'chain_warning') return 'border-amber-400/20 bg-amber-400/[0.08] text-amber-300';
+  if (normalized === 'reviewed_approved' || normalized === 'reviewed_commented' || normalized === 'approved' || normalized === 'passed' || normalized === 'chain_intact') {
     return 'border-emerald-400/20 bg-emerald-400/[0.08] text-emerald-300';
   }
-  if (normalized.includes('challeng') || normalized.includes('violat') || normalized === 'overridden' || normalized === 'requested_review' || normalized === 'chain_warning') return 'border-amber-400/20 bg-amber-400/[0.08] text-amber-300';
   if (normalized === 'created' || normalized === 'running' || normalized === 'verification_available') {
     return 'border-sky-400/20 bg-sky-400/[0.08] text-sky-300';
   }
@@ -193,6 +192,7 @@ function ReviewPanel({ decisionId }: { decisionId: string }) {
   const [error, setError] = useState<string | null>(null);
   const [action, setAction] = useState<ReviewActionKind | ''>('');
   const [comment, setComment] = useState('');
+  const [reviewerId, setReviewerIdState] = useState(() => getReviewerId() ?? '');
   const [validationError, setValidationError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -215,14 +215,23 @@ function ReviewPanel({ decisionId }: { decisionId: string }) {
       setValidationError('Choose a review action before submitting.');
       return;
     }
-    if ((action === 'REJECTED' || action === 'OVERRIDDEN') && !comment.trim()) {
-      setValidationError('A comment is required for Reject and Override actions.');
+    if (!reviewerId.trim()) {
+      setValidationError('Enter your reviewer identity before submitting.');
+      return;
+    }
+    if ((action === 'REJECTED' || action === 'OVERRIDDEN' || action === 'REQUESTED_REVIEW') && !comment.trim()) {
+      setValidationError('A comment is required for Reject, Override, and Request review actions.');
       return;
     }
 
     setSubmitting(true);
     try {
-      const review = await submitReview({ decision_id: decisionId, action, comment: comment || null });
+      const review = await submitReview({
+        decision_id: decisionId,
+        action,
+        comment: comment || null,
+        reviewer_id: reviewerId,
+      });
       setReviews((current) => [review, ...current].sort((a, b) => b.created_at.localeCompare(a.created_at)));
       setAction('');
       setComment('');
@@ -267,6 +276,16 @@ function ReviewPanel({ decisionId }: { decisionId: string }) {
       {!loading && !error && (
         <form onSubmit={handleSubmit} className="mt-4 border-t border-line pt-4">
           <p className="mb-3 text-[10px] font-medium uppercase tracking-wider text-slate-500">Record a reviewer decision</p>
+          <label className="mb-3 block text-[10px] text-slate-500">Reviewer identity
+            <input
+              value={reviewerId}
+              onChange={(event) => { setReviewerIdState(event.target.value); setValidationError(null); }}
+              placeholder="e.g. jane.doe@company.com"
+              autoComplete="username"
+              className="mt-1.5 h-10 w-full border border-line bg-shell px-3 text-xs text-slate-300 outline-none placeholder:text-slate-600 focus:border-accent/50 focus-visible:ring-1 focus-visible:ring-accent/30 sm:h-9"
+            />
+            <span className="mt-1 block text-[9px] leading-4 text-slate-600">Stored in this browser; override with VITE_REVIEWER_ID. Reviews are attributed to this identity.</span>
+          </label>
           <label className="mb-3 block text-[10px] text-slate-500">Review action
             <select value={action} onChange={(event) => { setAction(event.target.value as ReviewActionKind | ''); setValidationError(null); }} className="mt-1.5 h-10 w-full border border-line bg-shell px-3 text-xs text-slate-300 outline-none focus:border-accent/50 focus-visible:ring-1 focus-visible:ring-accent/30 sm:h-9">
               <option value="">Choose an action</option>
@@ -274,9 +293,10 @@ function ReviewPanel({ decisionId }: { decisionId: string }) {
               <option value="REJECTED">Reject</option>
               <option value="OVERRIDDEN">Override</option>
               <option value="REQUESTED_REVIEW">Request review</option>
+              <option value="COMMENTED">Comment</option>
             </select>
           </label>
-          <label className="block text-[10px] text-slate-500">Comment {(action === 'REJECTED' || action === 'OVERRIDDEN') && <span className="text-rose-300">· required</span>}
+          <label className="block text-[10px] text-slate-500">Comment {(action === 'REJECTED' || action === 'OVERRIDDEN' || action === 'REQUESTED_REVIEW') && <span className="text-rose-300">· required</span>}
             <textarea value={comment} onChange={(event) => { setComment(event.target.value); setValidationError(null); }} rows={3} maxLength={500} placeholder="Add reviewer context…" className="mt-1.5 w-full resize-y border border-line bg-shell px-3 py-2 text-xs leading-5 text-slate-300 outline-none placeholder:text-slate-600 focus:border-accent/50 focus-visible:ring-1 focus-visible:ring-accent/30" />
           </label>
           {validationError && <p role="alert" className="mt-2 text-[10px] text-rose-300">{validationError}</p>}
@@ -515,12 +535,15 @@ function LoadingState() {
   );
 }
 
-function ErrorState({ message }: { message: string }) {
+function ErrorState({ message, onRetry }: { message: string; onRetry: () => void }) {
   return (
     <div role="alert" className="border border-rose-400/20 bg-rose-400/[0.04] px-5 py-6">
       <h1 className="text-sm font-medium text-rose-200">Could not load decision</h1>
       <p className="mt-1 text-xs text-slate-400">{message}</p>
-      <Link to="/decisions" className="mt-4 inline-flex items-center gap-2 text-xs text-slate-300 hover:text-white"><ArrowLeft size={13} /> Back to decisions</Link>
+      <div className="mt-4 flex flex-wrap items-center gap-3">
+        <button type="button" onClick={onRetry} className="inline-flex items-center gap-2 border border-line px-3 py-2 text-xs text-slate-300 hover:border-slate-600 hover:text-white">Retry</button>
+        <Link to="/decisions" className="inline-flex items-center gap-2 text-xs text-slate-300 hover:text-white"><ArrowLeft size={13} /> Back to decisions</Link>
+      </div>
     </div>
   );
 }
@@ -544,6 +567,7 @@ export default function DecisionDetailPage() {
   const [decision, setDecision] = useState<DecisionDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -565,7 +589,7 @@ export default function DecisionDetailPage() {
     return () => {
       active = false;
     };
-  }, [decisionId]);
+  }, [decisionId, reloadKey]);
 
   return (
     <>
@@ -577,7 +601,7 @@ export default function DecisionDetailPage() {
           <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" /> Live audit trace
         </span>
       </div>
-      {loading ? <LoadingState /> : error ? <ErrorState message={error} /> : decision ? <DecisionContent key={decision.id} decision={decision} /> : <NotFoundState />}
+      {loading ? <LoadingState /> : error ? <ErrorState message={error} onRetry={() => setReloadKey((current) => current + 1)} /> : decision ? <DecisionContent key={decision.id} decision={decision} /> : <NotFoundState />}
     </>
   );
 }

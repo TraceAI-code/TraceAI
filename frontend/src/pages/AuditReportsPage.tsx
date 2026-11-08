@@ -24,15 +24,18 @@ export default function AuditReportsPage() {
   const [reports, setReports] = useState<AuditReport[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     let active = true;
+    setLoading(true);
+    setError(null);
     getAuditReports()
       .then((items) => { if (active) setReports(items); })
       .catch((cause: unknown) => { if (active) setError(cause instanceof Error ? cause.message : 'Could not load audit reports.'); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, []);
+  }, [reloadKey]);
 
   return (
     <>
@@ -44,7 +47,7 @@ export default function AuditReportsPage() {
       {loading ? (
         <div role="status" className="flex items-center gap-3 border border-line bg-panel px-5 py-8 text-sm text-slate-400"><LoaderCircle size={16} className="animate-spin text-accent" />Loading available reports…</div>
       ) : error ? (
-        <div role="alert" className="border border-rose-400/20 bg-panel px-5 py-6 text-sm text-rose-300">Could not load reports: {error}</div>
+        <div role="alert" className="border border-rose-400/20 bg-panel px-5 py-6 text-sm text-rose-300">Could not load reports: {error}<button type="button" onClick={() => setReloadKey((current) => current + 1)} className="ml-3 inline-flex items-center border border-line px-2 py-1 text-[10px] text-slate-300 hover:border-slate-600 hover:text-white">Retry</button></div>
       ) : reports.length === 0 ? (
         <div className="border border-line bg-panel px-5 py-10 text-center"><FileText size={20} className="mx-auto text-slate-500" /><p className="mt-3 text-sm text-slate-300">No audit reports are available.</p><p className="mt-1 text-xs text-slate-500">Reports will appear here once decisions are recorded.</p></div>
       ) : (

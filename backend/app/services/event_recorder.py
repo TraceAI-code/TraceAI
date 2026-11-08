@@ -62,9 +62,13 @@ class EventRecorder:
         decision.root_hash = event_hash
 
         # Keep the decision lifecycle status in sync with the audit chain.
-        # A policy violation is an outcome we must not overwrite with "completed".
+        # Terminal outcomes and human review statuses must not be overwritten
+        # by a late DECISION_COMPLETED event.
         if event_type == "DECISION_COMPLETED":
-            if decision.status not in ("policy_violated", "failed"):
+            if (
+                decision.status not in ("policy_violated", "failed")
+                and not decision.status.startswith("reviewed_")
+            ):
                 decision.status = "completed"
         elif event_type == "DECISION_FAILED":
             decision.status = "failed"

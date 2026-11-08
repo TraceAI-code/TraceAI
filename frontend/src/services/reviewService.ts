@@ -1,6 +1,9 @@
 import { api } from './apiClient';
 import type { ReviewAction, ReviewActionKind } from '../types/review';
 
+const REVIEWER_STORAGE_KEY = 'traceai.reviewer_id';
+const COMMENT_REQUIRED: ReviewActionKind[] = ['REJECTED', 'OVERRIDDEN', 'REQUESTED_REVIEW'];
+
 interface BackendReview {
   id: string;
   decision_id: string;
@@ -23,6 +26,36 @@ function toReview(r: BackendReview): ReviewAction {
   };
 }
 
+/**
+ * Resolve the reviewer identity without inventing one.
+ *
+ * Priority: explicit build-time configuration, then a value an auditor has
+ * persisted in this browser. There is intentionally no hardcoded fallback:
+ * an audit trail must identify a real principal.
+ */
+export function getReviewerId(): string | null {
+  const configured = import.meta.env.VITE_REVIEWER_ID?.trim();
+  if (configured) return configured;
+
+  try {
+    const stored = window.localStorage.getItem(REVIEWER_STORAGE_KEY)?.trim();
+    return stored || null;
+  } catch {
+    return null;
+  }
+}
+
+export function setReviewerId(reviewerId: string): void {
+  const normalized = reviewerId.trim();
+  if (!normalized) return;
+  try {
+    window.localStorage.setItem(REVIEWER_STORAGE_KEY, normalized);
+  } catch {
+    // Storage can be unavailable (private mode); the caller still sends the
+    // identity for this submission.
+  }
+}
+
 export async function getReviewsForDecision(decisionId: string): Promise<ReviewAction[]> {
   const results = await api.get<BackendReview[]>(`/decisions/${decisionId}/reviews`);
   return results.map(toReview).sort((a, b) => b.created_at.localeCompare(a.created_at));
@@ -37,16 +70,27 @@ export async function submitReview(input: {
   decision_id: string;
   action: ReviewActionKind;
   comment: string | null;
+  reviewer_id?: string;
 }): Promise<ReviewAction> {
   if (!input.decision_id) throw new Error('A decision is required for a review.');
-  if ((input.action === 'REJECTED' || input.action === 'OVERRIDDEN') && !input.comment?.trim()) {
-    throw new Error('A comment is required for a rejected or overridden review.');
+
+  const reviewerId = (input.reviewer_id ?? getReviewerId())?.trim();
+  if (!reviewerId) {
+    throw new Error('Set your reviewer identity before submitting an audit review.');
+  }
+
+  if (COMMENT_REQUIRED.includes(input.action) && !input.comment?.trim()) {
+    throw new Error(
+      'A comment is required for reject, override, and request-review actions.',
+    );
   }
 
   const review = await api.post<BackendReview>(`/decisions/${input.decision_id}/reviews`, {
-    reviewer_id: 'auditor-ui',
+    reviewer_id: reviewerId,
     action: input.action.toLowerCase(),
     comments: input.comment?.trim() || null,
   });
+
+  setReviewerId(reviewerId);
   return toReview(review);
 }

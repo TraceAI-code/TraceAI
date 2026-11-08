@@ -1,4 +1,4 @@
-import { api } from './apiClient';
+import { api, isNotFound } from './apiClient';
 import type { Policy, PolicyEvaluation } from '../types/policy';
 
 interface BackendRule {
@@ -149,8 +149,9 @@ export async function getPolicyById(policyId: string): Promise<Policy | null> {
   try {
     const p = await api.get<BackendPolicy>(`/policies/${policyId}`);
     return toPolicy(p);
-  } catch {
-    return null;
+  } catch (cause) {
+    if (isNotFound(cause)) return null;
+    throw cause;
   }
 }
 

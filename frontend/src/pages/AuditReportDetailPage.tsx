@@ -1,8 +1,9 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { ArrowLeft, ChevronDown, Clock3, FileSearch, Fingerprint, LoaderCircle, Scale, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, ChevronDown, Clock3, Download, FileSearch, Fingerprint, LoaderCircle, Scale, ShieldCheck } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
 import PageHeader from '../components/PageHeader';
 import { getAuditReport } from '../services/auditReportService';
+import { apiUrl } from '../services/apiClient';
 import type { AuditReport } from '../types/auditReport';
 
 function formatDate(value: string | null): string {
@@ -43,7 +44,7 @@ function ReportBody({ report }: { report: AuditReport }) {
         <Link to="/audit-reports" className="inline-flex items-center gap-2 text-xs text-slate-400 outline-none hover:text-slate-100 focus-visible:ring-1 focus-visible:ring-accent/50"><ArrowLeft size={14} />Back to audit reports</Link>
         <span className="inline-flex items-center gap-1.5 text-[9px] uppercase tracking-wider text-emerald-400"><span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />Compiled from audit events</span>
       </div>
-      <PageHeader eyebrow="Consolidated decision record" title="Audit Report" description="Investigator-oriented view of the recorded decision lifecycle and associated audit data." action={<Link to={`/decisions/${decision.id}`} className="inline-flex min-h-9 w-fit items-center gap-2 border border-line px-3 text-xs text-slate-300 outline-none hover:border-slate-600 hover:text-white focus-visible:ring-1 focus-visible:ring-accent/50">Decision detail <ArrowLeft size={13} className="rotate-180" /></Link>} />
+      <PageHeader eyebrow="Consolidated decision record" title="Audit Report" description="Investigator-oriented view of the recorded decision lifecycle and associated audit data." action={<div className="flex flex-wrap items-center gap-2"><a href={apiUrl(`/decisions/${decision.id}/audit-report?format=json`)} download={`traceai-audit-${decision.id}.json`} className="inline-flex min-h-9 w-fit items-center gap-2 border border-line px-3 text-xs text-slate-300 outline-none hover:border-slate-600 hover:text-white focus-visible:ring-1 focus-visible:ring-accent/50"><Download size={13} />JSON</a><a href={apiUrl(`/decisions/${decision.id}/audit-report?format=markdown`)} download={`traceai-audit-${decision.id}.md`} className="inline-flex min-h-9 w-fit items-center gap-2 border border-line px-3 text-xs text-slate-300 outline-none hover:border-slate-600 hover:text-white focus-visible:ring-1 focus-visible:ring-accent/50"><Download size={13} />Markdown</a><Link to={`/decisions/${decision.id}`} className="inline-flex min-h-9 w-fit items-center gap-2 border border-line px-3 text-xs text-slate-300 outline-none hover:border-slate-600 hover:text-white focus-visible:ring-1 focus-visible:ring-accent/50">Decision detail <ArrowLeft size={13} className="rotate-180" /></Link></div>} />
 
       <section className="mb-5 border border-line bg-panel">
         <div className="flex flex-wrap items-start justify-between gap-4 border-b border-line px-4 py-4 sm:px-5">
@@ -128,6 +129,7 @@ export default function AuditReportDetailPage() {
   const [report, setReport] = useState<AuditReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -137,10 +139,10 @@ export default function AuditReportDetailPage() {
       .catch((cause: unknown) => { if (active) setError(cause instanceof Error ? cause.message : 'Could not load this audit report.'); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [decisionId]);
+  }, [decisionId, reloadKey]);
 
   if (loading) return <div role="status" className="flex items-center gap-3 border border-line bg-panel px-5 py-8 text-sm text-slate-400"><LoaderCircle size={16} className="animate-spin text-accent" />Loading audit report…</div>;
-  if (error) return <div role="alert" className="border border-rose-400/20 bg-panel px-5 py-6"><p className="text-sm text-rose-300">Could not load audit report</p><p className="mt-1 text-xs text-slate-500">{error}</p><Link to="/audit-reports" className="mt-4 inline-flex items-center gap-2 text-xs text-slate-300"><ArrowLeft size={13} />Back to reports</Link></div>;
+  if (error) return <div role="alert" className="border border-rose-400/20 bg-panel px-5 py-6"><p className="text-sm text-rose-300">Could not load audit report</p><p className="mt-1 text-xs text-slate-500">{error}</p><div className="mt-4 flex flex-wrap items-center gap-3"><button type="button" onClick={() => setReloadKey((current) => current + 1)} className="inline-flex items-center gap-2 border border-line px-3 py-2 text-xs text-slate-300 hover:border-slate-600 hover:text-white">Retry</button><Link to="/audit-reports" className="inline-flex items-center gap-2 text-xs text-slate-300"><ArrowLeft size={13} />Back to reports</Link></div></div>;
   if (!report) return <div className="border border-line bg-panel px-6 py-10 text-center"><p className="font-mono text-[10px] uppercase tracking-wider text-slate-500">404 / REPORT_NOT_FOUND</p><h1 className="mt-2 text-lg font-semibold text-slate-100">Audit report not found</h1><p className="mt-2 text-xs text-slate-500">No report is available for this decision in the stored audit records.</p><Link to="/audit-reports" className="mt-5 inline-flex items-center gap-2 border border-line px-3 py-2 text-xs text-slate-300 hover:text-white"><ArrowLeft size={13} />Back to audit reports</Link></div>;
   return <ReportBody report={report} />;
 }

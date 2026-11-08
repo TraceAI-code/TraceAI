@@ -28,6 +28,8 @@ class PolicyResponse(BaseModel):
     effective_from: datetime
     effective_to: datetime | None
     created_at: datetime
+    updated_at: datetime
+    status: str
 
 
 class PolicyEvaluationCondition(BaseModel):
