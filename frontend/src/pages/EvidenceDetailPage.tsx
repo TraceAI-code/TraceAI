@@ -94,7 +94,14 @@ function EvidenceContent({ evidence }: { evidence: Evidence }) {
           <FileText size={14} className="text-slate-500" />
           <h2 className="text-xs font-medium text-slate-300">Content / Evidence</h2>
         </div>
-        {isStructured && <span className="font-mono text-[9px] text-slate-600">STRUCTURED JSON</span>}
+        <span className="flex items-center gap-3">
+          {evidence.content_verified !== undefined && (
+            <span className={`font-mono text-[9px] ${evidence.content_verified ? 'text-emerald-300/80' : 'text-rose-300/80'}`}>
+              {evidence.content_verified ? 'HASH VERIFIED' : 'HASH MISMATCH'}
+            </span>
+          )}
+          {isStructured && <span className="font-mono text-[9px] text-slate-600">STRUCTURED JSON</span>}
+        </span>
       </div>
       <div className="p-4 sm:p-5">
         {isStructured && expanded ? (
@@ -113,7 +120,7 @@ function EvidenceContent({ evidence }: { evidence: Evidence }) {
 }
 
 function LoadingState() {
-  return <div role="status" className="flex items-center gap-3 border border-line bg-panel px-5 py-8 text-sm text-slate-400"><LoaderCircle size={17} className="animate-spin text-accent" />Loading development evidence…</div>;
+  return <div role="status" className="flex items-center gap-3 border border-line bg-panel px-5 py-8 text-sm text-slate-400"><LoaderCircle size={17} className="animate-spin text-accent" />Loading evidence…</div>;
 }
 
 function ErrorState({ message }: { message: string }) {
@@ -132,7 +139,7 @@ function NotFoundState() {
       <FileSearch size={20} className="mx-auto text-slate-500" />
       <p className="mt-4 font-mono text-[10px] uppercase tracking-[0.16em] text-slate-500">404 / EVIDENCE_NOT_FOUND</p>
       <h1 className="mt-2 text-lg font-semibold text-slate-100">Evidence not found</h1>
-      <p className="mx-auto mt-2 max-w-md text-xs leading-5 text-muted">This ID is not present in the current development evidence records.</p>
+      <p className="mx-auto mt-2 max-w-md text-xs leading-5 text-muted">This ID is not present in the evidence store.</p>
       <Link to="/evidence" className="mt-5 inline-flex items-center gap-2 border border-line px-3 py-2 text-xs text-slate-300 hover:border-slate-600 hover:text-white"><ArrowLeft size={13} />Back to Evidence Explorer</Link>
     </div>
   );
@@ -163,7 +170,15 @@ function EvidenceDetail({ evidence }: { evidence: Evidence }) {
           <MetadataField label="Source reference" value={evidence.source_reference} mono />
           <MetadataField label="Created at" value={formatTimestamp(evidence.created_at)} />
           <MetadataField label="Retrieved at" value={formatTimestamp(evidence.retrieved_at)} />
-          <div className="sm:col-span-2 lg:col-span-3"><MetadataField label="Content hash · mock value" value={evidence.hash} mono /></div>
+          <div className="sm:col-span-2 lg:col-span-3"><MetadataField label="Content hash" value={evidence.hash} mono /></div>
+          {evidence.content_verified !== undefined && (
+            <div className="sm:col-span-2 lg:col-span-3">
+              <MetadataField
+                label="Content integrity"
+                value={evidence.content_verified ? 'Verified — stored bytes match the SHA-256 content hash' : 'Mismatch — stored bytes do not match the recorded hash'}
+              />
+            </div>
+          )}
         </div>
         {Object.keys(evidence.metadata).length > 0 && (
           <div className="mt-4 border-t border-line pt-4">

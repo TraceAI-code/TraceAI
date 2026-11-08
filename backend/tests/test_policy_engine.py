@@ -60,6 +60,20 @@ def test_policy_engine_evaluation_and_audit_event():
     assert report["passed"] is True
     assert len(report["violations"]) == 0
 
+    # Verify per-policy and per-decision evaluation history endpoints
+    policy_evals = client.get(f"/api/v1/policies/{policy_id}/evaluations").json()
+    assert any(
+        e["decision_id"] == clean_dec["id"]
+        and e["policy_id"] == policy_id
+        and e["result"] == "PASSED"
+        for e in policy_evals
+    )
+    decision_evals = client.get(
+        f"/api/v1/decisions/{clean_dec['id']}/evaluations"
+    ).json()
+    assert decision_evals[0]["policy_id"] == policy_id
+    assert decision_evals[0]["policy_version"] == "1.0.0"
+
     # Verify audit chain integrity with the POLICY_EVALUATION event
     integrity = client.get(f"/api/v1/decisions/{clean_dec['id']}/integrity").json()
     assert integrity["valid"] is True

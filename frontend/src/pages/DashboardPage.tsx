@@ -46,10 +46,10 @@ function ReviewIntegrityPanel({ data }: { data: DashboardData }) {
     <section className="border border-line bg-panel">
       <div className="flex items-center gap-2 border-b border-line px-4 py-3"><ShieldCheck size={14} className="text-slate-500" /><h2 className="text-xs font-medium text-slate-200">Review & integrity status</h2></div>
       <div className="grid gap-4 p-4 sm:grid-cols-2">
-        <div><p className="mb-2 text-[9px] uppercase tracking-wider text-slate-600">Human review records</p><div className="flex items-baseline gap-2"><span className="font-mono text-lg text-slate-200">{data.decisionsWithReviewHistory}</span><span className="text-[10px] text-slate-500">decisions with history</span></div><p className="mt-1 text-[10px] text-slate-600">{data.decisionsWithoutReviewHistory} decisions have no review history in these fixtures.</p></div>
-        <div><p className="mb-2 text-[9px] uppercase tracking-wider text-slate-600">Integrity fixture status</p><div className="flex flex-wrap gap-x-4 gap-y-1 text-[10px]"><span className="text-emerald-300/80">{data.intactChainCount} marked chain intact</span><span className="text-amber-300/80">{data.warningChainCount} marked with warning</span></div><p className="mt-1 text-[10px] text-slate-600">Integrity unavailable for {data.integrityUnavailableCount} decisions.</p></div>
+        <div><p className="mb-2 text-[9px] uppercase tracking-wider text-slate-600">Human review records</p><div className="flex items-baseline gap-2"><span className="font-mono text-lg text-slate-200">{data.decisionsWithReviewHistory}</span><span className="text-[10px] text-slate-500">decisions with history</span></div><p className="mt-1 text-[10px] text-slate-600">{data.decisionsWithoutReviewHistory} decisions have no review history yet.</p></div>
+        <div><p className="mb-2 text-[9px] uppercase tracking-wider text-slate-600">Chain integrity status</p><div className="flex flex-wrap gap-x-4 gap-y-1 text-[10px]"><span className="text-emerald-300/80">{data.intactChainCount} marked chain intact</span><span className="text-amber-300/80">{data.warningChainCount} marked with warning</span></div><p className="mt-1 text-[10px] text-slate-600">Integrity unavailable for {data.integrityUnavailableCount} decisions.</p></div>
       </div>
-      <div className="flex items-start gap-2 border-t border-line px-4 py-3 text-[9px] leading-4 text-slate-600"><ShieldAlert size={12} className="mt-0.5 shrink-0" />Fixture statuses only. The frontend does not independently verify cryptographic integrity.</div>
+      <div className="flex items-start gap-2 border-t border-line px-4 py-3 text-[9px] leading-4 text-slate-600"><ShieldAlert size={12} className="mt-0.5 shrink-0" />Status is reported by the backend verifier. The frontend does not independently recompute hashes.</div>
     </section>
   );
 }
@@ -66,7 +66,7 @@ function DashboardContent({ data }: { data: DashboardData }) {
 
       <section aria-label="Audit metrics" className="mb-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard label="Decision records" value={data.decisions.length} description="Decision summaries available for investigation." icon={Activity} />
-        <MetricCard label="Evidence records" value={data.evidenceCount} description="Evidence fixtures available in the explorer." icon={Archive} />
+        <MetricCard label="Evidence records" value={data.evidenceCount} description="Stored evidence artifacts available in the explorer." icon={Archive} />
         <MetricCard label="Policy evaluations" value={data.policyEvaluationCount} description="Evaluation records linked to existing decisions." icon={Scale} />
         <MetricCard label="Reviewed decisions" value={data.decisionsWithReviewHistory} description="Decisions with at least one recorded review action." icon={ClipboardCheck} />
       </section>
@@ -74,7 +74,7 @@ function DashboardContent({ data }: { data: DashboardData }) {
       <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(280px,0.75fr)]">
         <section className="min-w-0 border border-line bg-panel">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-3 sm:px-5"><div><h2 className="text-xs font-medium text-slate-200">Recent decisions</h2><p className="mt-1 text-[10px] text-slate-500">Latest records in the local decision register</p></div><Link to="/decisions" className="inline-flex items-center gap-1.5 text-[10px] text-blue-300/80 hover:text-blue-200">View all decisions <ArrowRight size={12} /></Link></div>
-          {recentDecisions.length ? <ul className="divide-y divide-line">{recentDecisions.map((decision) => <DecisionRow key={decision.id} decision={decision} />)}</ul> : <div className="px-4 py-8 text-center text-xs text-slate-500">No decision records are available in the current fixtures.</div>}
+          {recentDecisions.length ? <ul className="divide-y divide-line">{recentDecisions.map((decision) => <DecisionRow key={decision.id} decision={decision} />)}</ul> : <div className="px-4 py-8 text-center text-xs text-slate-500">No decision records are available yet.</div>}
         </section>
 
         <div className="space-y-5">

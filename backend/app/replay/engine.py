@@ -135,24 +135,26 @@ class ReplayEngine:
                 continue
 
             # Handle tool executions by using cached mock results
-            if event_type in ("TOOL_CALL_STARTED", "TOOL_CALL_COMPLETED"):
+            if event_type in ("TOOL_CALL_STARTED", "TOOL_CALL_COMPLETED", "TOOL_CALL_FAILED"):
                 tool_name = orig_payload.get("tool_name", "unknown_tool")
-                mocked_result = orig_payload.get("result")
-                if mocked_result is None or (isinstance(mocked_result, str) and "[Evidence stored" in mocked_result):
-                    mocked_result = (
-                        tool_cache.get(f"tool_output_{tool_name}")
-                        or tool_cache.get(tool_name)
-                        or mocked_result
-                    )
+                replayed_payload = {
+                    **orig_payload,
+                    "tool_name": tool_name,
+                }
+                if event_type == "TOOL_CALL_COMPLETED":
+                    mocked_result = orig_payload.get("result")
+                    if mocked_result is None or (isinstance(mocked_result, str) and "[Evidence stored" in mocked_result):
+                        mocked_result = (
+                            tool_cache.get(f"tool_output_{tool_name}")
+                            or tool_cache.get(tool_name)
+                            or mocked_result
+                        )
+                    replayed_payload["result"] = mocked_result
+                    replayed_payload["mocked_from_evidence"] = mock_tools
                 replayed_events.append({
                     "sequence_number": seq,
                     "event_type": event_type,
-                    "payload": {
-                        **orig_payload,
-                        "tool_name": tool_name,
-                        "result": mocked_result,
-                        "mocked_from_evidence": mock_tools,
-                    },
+                    "payload": replayed_payload,
                 })
                 seq += 1
 

@@ -15,6 +15,7 @@ from app.schemas.decision import (
     IntegrityResponse,
 )
 from app.schemas.event import BatchEventCreate, EventCreate, EventDetailResponse
+from app.schemas.policy import PolicyEvaluationResponse
 from app.schemas.review import ReviewCreate, ReviewResponse
 from app.services.decision_service import (
     create_decision,
@@ -24,6 +25,7 @@ from app.services.decision_service import (
     verify_decision_integrity,
 )
 from app.services.event_recorder import EventRecorder
+from app.services.policy_service import list_decision_evaluations
 from app.services.review_service import create_review, list_reviews_for_decision
 
 router = APIRouter(
@@ -294,3 +296,19 @@ def get_decision_reviews(
 ):
     """List all human reviews recorded for a specific decision."""
     return list_reviews_for_decision(db, decision_id)
+
+
+@router.get(
+    "/{decision_id}/evaluations",
+    response_model=list[PolicyEvaluationResponse],
+)
+def get_decision_evaluations(
+    decision_id: uuid.UUID,
+    limit: int = Query(100, ge=1, le=500),
+    db: Session = Depends(get_db),
+):
+    """List per-policy evaluation results reconstructed from audit events."""
+    decision = db.get(Decision, decision_id)
+    if not decision:
+        raise HTTPException(status_code=404, detail="Decision not found")
+    return list_decision_evaluations(db, decision_id, limit=limit)

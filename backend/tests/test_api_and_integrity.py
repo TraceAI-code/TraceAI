@@ -76,6 +76,15 @@ def test_decision_lifecycle_and_tamper_detection():
     res = client.post(f"/api/v1/decisions/{decision_id}/evidence/{evidence_id}?role=retrieved_profile")
     assert res.status_code == 201
 
+    # Evidence detail returns the stored content and its linked decisions
+    evidence_detail = client.get(f"/api/v1/evidence/{evidence_id}").json()
+    assert evidence_detail["content_verified"] is True
+    assert "risk_score" in evidence_detail["content"]
+    assert any(
+        linked["id"] == decision_id
+        for linked in evidence_detail["linked_decisions"]
+    )
+
     # 6. Submit a human review
     res = client.post(
         f"/api/v1/decisions/{decision_id}/reviews",

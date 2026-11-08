@@ -10,10 +10,14 @@ dependencies = [
     "psycopg[binary]>=3.3.6",
     "pydantic-settings>=2.15.0",
     "sqlalchemy>=2.0.54",
+    "traceai-sdk",
 ]
 
 [tool.uv]
 package = false
+
+[tool.uv.sources]
+traceai-sdk = { path = "sdk", editable = true }
 
 [dependency-groups]
 dev = [

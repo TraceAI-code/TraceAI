@@ -12,6 +12,8 @@ export interface Evidence {
   source: string;
   source_reference: string | null;
   content: string;
+  /** Whether the stored bytes still match the recorded content hash. */
+  content_verified?: boolean;
   excerpt: string | null;
   created_at: string;
   retrieved_at: string | null;

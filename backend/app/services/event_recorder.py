@@ -61,6 +61,16 @@ class EventRecorder:
         self.db.add(event)
         decision.root_hash = event_hash
 
+        # Keep the decision lifecycle status in sync with the audit chain.
+        # A policy violation is an outcome we must not overwrite with "completed".
+        if event_type == "DECISION_COMPLETED":
+            if decision.status not in ("policy_violated", "failed"):
+                decision.status = "completed"
+        elif event_type == "DECISION_FAILED":
+            decision.status = "failed"
+        elif event_type != "DECISION_CREATED" and decision.status == "created":
+            decision.status = "running"
+
         # Link any evidence records referenced by this event
         if evidence_ids:
             for ev_id in evidence_ids:

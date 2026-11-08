@@ -6,9 +6,14 @@ from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
-from app.schemas.policy import PolicyCreate, PolicyResponse
+from app.schemas.policy import PolicyCreate, PolicyEvaluationResponse, PolicyResponse
 from app.services.policy_engine import PolicyEngine
-from app.services.policy_service import create_policy, get_policy, list_policies
+from app.services.policy_service import (
+    create_policy,
+    get_policy,
+    list_policies,
+    list_policy_evaluations,
+)
 
 router = APIRouter(
     prefix="/api/v1/policies",
@@ -54,6 +59,22 @@ def get_policy_detail(
     if not policy:
         raise HTTPException(status_code=404, detail="Policy not found")
     return policy
+
+
+@router.get(
+    "/{policy_id}/evaluations",
+    response_model=list[PolicyEvaluationResponse],
+)
+def get_policy_evaluations(
+    policy_id: uuid.UUID,
+    limit: int = Query(100, ge=1, le=500),
+    db: Session = Depends(get_db),
+):
+    """List recorded evaluations for a policy from decision audit chains."""
+    policy = get_policy(db, policy_id)
+    if not policy:
+        raise HTTPException(status_code=404, detail="Policy not found")
+    return list_policy_evaluations(db, policy_id, limit=limit)
 
 
 @router.post(

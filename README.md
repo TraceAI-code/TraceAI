@@ -195,6 +195,8 @@ Install the SDK in your project or agent repository:
 pip install -e sdk/
 ```
 
+Within this repository, `uv sync` already installs `traceai-sdk` in editable mode from the local `sdk/` directory, so the sample agent and tests can import it without setting `PYTHONPATH`.
+
 ### Basic Context Manager Tracing
 
 ```python
@@ -259,15 +261,18 @@ uv run python examples/sample_agent/agent.py --endpoint http://127.0.0.1:8000
 
 ## 🔬 Testing
 
-TraceAI uses `pytest` across both backend and SDK components:
+TraceAI uses `pytest` across both backend and SDK components. The test suite runs against an isolated in-memory SQLite database and a temporary evidence directory, so it is fast, hermetic, and never touches the database or storage configured in your `.env` file.
 
 ```bash
-# Run pure unit tests (hashing, local algorithms)
-uv run pytest backend/tests/test_hashing.py sdk/tests/test_hashing.py
-
-# Run all integration tests (requires active DATABASE_URL)
+# Run the full backend and SDK test suite
 uv run pytest
+
+# Run a focused test file or pattern
+uv run pytest backend/tests/test_hashing.py
+uv run pytest -k replay
 ```
+
+No running database or network access is required for the test suite.
 
 ---
 

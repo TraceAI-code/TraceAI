@@ -67,10 +67,16 @@ class PolicyEngine:
 
         all_violations = []
         evaluated_names = []
+        evaluated_details = []
 
         # Evaluate rules for each policy
         for p in policies:
             evaluated_names.append(f"{p.name} (v{p.version})")
+            evaluated_details.append({
+                "id": str(p.id),
+                "name": p.name,
+                "version": p.version,
+            })
             violations = self._evaluate_rules(p.rules, data_to_check)
             for v in violations:
                 v["policy_id"] = str(p.id)
@@ -90,6 +96,7 @@ class PolicyEngine:
                 payload={
                     "status": "passed" if passed else "violated",
                     "policies_evaluated": evaluated_names,
+                    "policy_details": evaluated_details,
                     "violations_count": len(all_violations),
                     "violations": all_violations,
                 },

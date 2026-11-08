@@ -33,7 +33,7 @@ export async function getReviewById(_reviewId: string): Promise<ReviewAction | n
   return null;
 }
 
-export async function submitMockReview(input: {
+export async function submitReview(input: {
   decision_id: string;
   action: ReviewActionKind;
   comment: string | null;

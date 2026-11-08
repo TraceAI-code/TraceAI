@@ -41,7 +41,7 @@ function ReportBody({ report }: { report: AuditReport }) {
     <>
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <Link to="/audit-reports" className="inline-flex items-center gap-2 text-xs text-slate-400 outline-none hover:text-slate-100 focus-visible:ring-1 focus-visible:ring-accent/50"><ArrowLeft size={14} />Back to audit reports</Link>
-        <span className="inline-flex items-center gap-1.5 text-[9px] uppercase tracking-wider text-amber-300/80"><span className="h-1.5 w-1.5 rounded-full bg-amber-400" />Development mock report</span>
+        <span className="inline-flex items-center gap-1.5 text-[9px] uppercase tracking-wider text-emerald-400"><span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />Compiled from audit events</span>
       </div>
       <PageHeader eyebrow="Consolidated decision record" title="Audit Report" description="Investigator-oriented view of the recorded decision lifecycle and associated audit data." action={<Link to={`/decisions/${decision.id}`} className="inline-flex min-h-9 w-fit items-center gap-2 border border-line px-3 text-xs text-slate-300 outline-none hover:border-slate-600 hover:text-white focus-visible:ring-1 focus-visible:ring-accent/50">Decision detail <ArrowLeft size={13} className="rotate-180" /></Link>} />
 
@@ -78,12 +78,12 @@ function ReportBody({ report }: { report: AuditReport }) {
                 </li>
               ))}
             </ol>
-          ) : <p className="text-[11px] text-slate-500">No detailed event timeline is available in this development report.</p>}
+          ) : <p className="text-[11px] text-slate-500">No event timeline is available for this decision.</p>}
         </Section>
 
         <div className="space-y-5">
           <Section title="Evidence" icon={FileSearch}>
-            {report.evidence.length ? <ul className="space-y-3">{report.evidence.map((item) => <li key={item.id} className="min-w-0 border-b border-line pb-3 last:border-0 last:pb-0"><Link to={`/evidence/${item.id}`} className="text-xs font-medium text-blue-200/90 outline-none hover:text-blue-100 focus-visible:ring-1 focus-visible:ring-accent/50">{item.title}</Link><p className="mt-1 break-all font-mono text-[9px] text-slate-600">{item.id}</p><p className="mt-1 break-words text-[10px] leading-4 text-slate-400">{readable(item.evidence_type)} · {item.source}</p><p className="mt-1 break-words text-[9px] text-slate-600">Linked to this decision{item.hash && <> · hash <span className="font-mono" title={item.hash}>{truncateHash(item.hash)}</span></>}</p></li>)}</ul> : <p className="text-[11px] text-slate-500">No evidence is linked in the available report fixtures.</p>}
+            {report.evidence.length ? <ul className="space-y-3">{report.evidence.map((item) => <li key={item.id} className="min-w-0 border-b border-line pb-3 last:border-0 last:pb-0"><Link to={`/evidence/${item.id}`} className="text-xs font-medium text-blue-200/90 outline-none hover:text-blue-100 focus-visible:ring-1 focus-visible:ring-accent/50">{item.title}</Link><p className="mt-1 break-all font-mono text-[9px] text-slate-600">{item.id}</p><p className="mt-1 break-words text-[10px] leading-4 text-slate-400">{readable(item.evidence_type)} · {item.source}</p><p className="mt-1 break-words text-[9px] text-slate-600">Linked to this decision{item.hash && <> · hash <span className="font-mono" title={item.hash}>{truncateHash(item.hash)}</span></>}</p></li>)}</ul> : <p className="text-[11px] text-slate-500">No evidence is linked in this report.</p>}
           </Section>
 
           <Section title="Policies" icon={Scale}>
@@ -106,7 +106,7 @@ function ReportBody({ report }: { report: AuditReport }) {
           </Section>
 
           <Section title="Integrity" icon={Fingerprint}>
-            <p className="mb-3 border border-amber-400/15 bg-amber-400/[0.035] px-3 py-2 text-[9px] leading-4 text-amber-200/80">Development fixture information. The frontend does not independently perform cryptographic verification.</p>
+            <p className="mb-3 border border-amber-400/15 bg-amber-400/[0.035] px-3 py-2 text-[9px] leading-4 text-amber-200/80">Hash values are supplied by the audit record. This frontend does not independently recompute them.</p>
             {report.integrity ? (
               <>
                 <div className="mb-3 flex flex-wrap items-center justify-between gap-2"><span className="text-[10px] text-slate-500">Recorded chain status</span><Badge value={report.integrity.chain_status} /></div>
@@ -115,7 +115,7 @@ function ReportBody({ report }: { report: AuditReport }) {
                 <p className="mt-3 text-[9px] leading-4 text-slate-500">The chain status and hash values shown are supplied by the audit record. This frontend does not independently recompute or verify them.</p>
                 <details className="group mt-3 border-t border-line pt-3"><summary className="flex cursor-pointer list-none items-center gap-2 text-[10px] text-slate-400 outline-none hover:text-slate-200 focus-visible:ring-1 focus-visible:ring-accent/50"><ChevronDown size={12} className="transition-transform group-open:rotate-180" />Inspect integrity chain <span className="font-mono text-slate-600">{report.integrity.events.length} records</span></summary><div className="mt-3 space-y-3"><div><p className="text-[9px] uppercase tracking-wider text-slate-600">Full root hash</p><p className="mt-1 break-all font-mono text-[9px] leading-4 text-slate-400">{report.integrity.root_hash ?? '—'}</p></div>{report.integrity.events.slice().sort((a, b) => a.sequence - b.sequence).map((event) => <div key={event.event_id} className="min-w-0 border-l border-line pl-3"><p className="text-[9px] uppercase tracking-wider text-slate-600">Sequence {event.sequence} · event type</p><p className="mt-1 text-[10px] font-medium text-slate-300">{readable(event.event_type)}</p><div className="mt-2"><p className="text-[9px] uppercase tracking-wider text-slate-600">Event ID</p><p className="mt-1 break-all font-mono text-[9px] leading-4 text-slate-500">{event.event_id}</p></div><div className="mt-2"><p className="text-[9px] uppercase tracking-wider text-slate-600">Event hash</p><p className="mt-1 break-all font-mono text-[9px] leading-4 text-slate-500">{event.hash}</p></div><div className="mt-2"><p className="text-[9px] uppercase tracking-wider text-slate-600">Previous hash</p><p className="mt-1 break-all font-mono text-[9px] leading-4 text-slate-500">{event.previous_hash ?? '—'}</p></div></div>)}</div></details>
               </>
-            ) : <p className="text-[11px] text-slate-500">Integrity information is unavailable for this decision in the current fixtures.</p>}
+            ) : <p className="text-[11px] text-slate-500">Integrity information is unavailable for this decision.</p>}
           </Section>
         </div>
       </div>
@@ -141,6 +141,6 @@ export default function AuditReportDetailPage() {
 
   if (loading) return <div role="status" className="flex items-center gap-3 border border-line bg-panel px-5 py-8 text-sm text-slate-400"><LoaderCircle size={16} className="animate-spin text-accent" />Loading audit report…</div>;
   if (error) return <div role="alert" className="border border-rose-400/20 bg-panel px-5 py-6"><p className="text-sm text-rose-300">Could not load audit report</p><p className="mt-1 text-xs text-slate-500">{error}</p><Link to="/audit-reports" className="mt-4 inline-flex items-center gap-2 text-xs text-slate-300"><ArrowLeft size={13} />Back to reports</Link></div>;
-  if (!report) return <div className="border border-line bg-panel px-6 py-10 text-center"><p className="font-mono text-[10px] uppercase tracking-wider text-slate-500">404 / REPORT_NOT_FOUND</p><h1 className="mt-2 text-lg font-semibold text-slate-100">Audit report not found</h1><p className="mt-2 text-xs text-slate-500">No report is available for this decision in the current development fixtures.</p><Link to="/audit-reports" className="mt-5 inline-flex items-center gap-2 border border-line px-3 py-2 text-xs text-slate-300 hover:text-white"><ArrowLeft size={13} />Back to audit reports</Link></div>;
+  if (!report) return <div className="border border-line bg-panel px-6 py-10 text-center"><p className="font-mono text-[10px] uppercase tracking-wider text-slate-500">404 / REPORT_NOT_FOUND</p><h1 className="mt-2 text-lg font-semibold text-slate-100">Audit report not found</h1><p className="mt-2 text-xs text-slate-500">No report is available for this decision in the stored audit records.</p><Link to="/audit-reports" className="mt-5 inline-flex items-center gap-2 border border-line px-3 py-2 text-xs text-slate-300 hover:text-white"><ArrowLeft size={13} />Back to audit reports</Link></div>;
   return <ReportBody report={report} />;
 }

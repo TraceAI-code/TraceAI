@@ -30,7 +30,7 @@ function OutcomeBadge({ value }: { value: string }) {
 }
 
 function LoadingState() {
-  return <div role="status" className="flex items-center gap-3 border border-line bg-panel px-5 py-8 text-sm text-slate-400"><LoaderCircle size={17} className="animate-spin text-accent" />Loading replay fixture…</div>;
+  return <div role="status" className="flex items-center gap-3 border border-line bg-panel px-5 py-8 text-sm text-slate-400"><LoaderCircle size={17} className="animate-spin text-accent" />Loading replay…</div>;
 }
 
 function NotFoundState() {
@@ -39,7 +39,7 @@ function NotFoundState() {
       <GitCompareArrows size={20} className="mx-auto text-slate-500" />
       <p className="mt-4 font-mono text-[10px] uppercase tracking-[0.16em] text-slate-500">404 / REPLAY_NOT_FOUND</p>
       <h1 className="mt-2 text-lg font-semibold text-slate-100">Replay not found</h1>
-      <p className="mx-auto mt-2 max-w-md text-xs leading-5 text-muted">This replay ID is not present in the current development fixtures.</p>
+      <p className="mx-auto mt-2 max-w-md text-xs leading-5 text-muted">This replay ID is not present in the stored replay records.</p>
       <Link to="/replay" className="mt-5 inline-flex items-center gap-2 border border-line px-3 py-2 text-xs text-slate-300 hover:border-slate-600 hover:text-white"><ArrowLeft size={13} />Back to Replay Workspace</Link>
     </div>
   );
@@ -78,12 +78,12 @@ function ReplayDetail({ replay }: { replay: ReplayRun }) {
         </div>
         {replay.original_result === replay.replay_result && <p className="mt-3 text-[10px] text-emerald-300/80">Recorded and replay outcomes match.</p>}
         <p className="mt-4 border-l border-line pl-3 text-xs leading-5 text-slate-300">{replay.summary}</p>
-        <p className="mt-3 text-[10px] text-slate-600">Development replay fixture only. This record does not represent execution of the production agent or AI model.</p>
+        <p className="mt-3 text-[10px] text-slate-600">Reconstructed from recorded events and tool outputs. This record does not execute the production agent or AI model.</p>
       </section>
 
       <section className="mb-6 border border-line bg-panel">
         <div className="border-b border-line px-4 py-3 sm:px-5"><h2 className="text-xs font-medium text-slate-300">Conditions</h2></div>
-        {replay.conditions.length ? <div className="space-y-2 p-4 sm:p-5">{replay.conditions.map((condition) => <article key={condition.name} className="min-w-0 border border-line/70 p-3"><div className="flex flex-wrap items-center justify-between gap-2"><h3 className="text-[11px] font-medium text-slate-300">{condition.name}</h3><span className={`text-[9px] ${condition.changed ? 'text-amber-300' : 'text-slate-600'}`}>{condition.changed ? 'Changed' : 'Unchanged'}</span></div><div className="mt-2 grid gap-2 sm:grid-cols-2"><div className="min-w-0"><p className="mb-1 text-[9px] uppercase tracking-wider text-slate-600">Original</p><p className="break-words font-mono text-[10px] text-slate-500">{condition.original_value}</p></div><div className="min-w-0"><p className="mb-1 text-[9px] uppercase tracking-wider text-slate-600">Replay</p><p className={`break-words font-mono text-[10px] ${condition.changed ? 'text-amber-200' : 'text-slate-500'}`}>{condition.replay_value}</p></div></div></article>)}</div> : <p className="px-5 py-6 text-xs text-slate-500">No condition details are attached to this replay fixture.</p>}
+        {replay.conditions.length ? <div className="space-y-2 p-4 sm:p-5">{replay.conditions.map((condition) => <article key={condition.name} className="min-w-0 border border-line/70 p-3"><div className="flex flex-wrap items-center justify-between gap-2"><h3 className="text-[11px] font-medium text-slate-300">{condition.name}</h3><span className={`text-[9px] ${condition.changed ? 'text-amber-300' : 'text-slate-600'}`}>{condition.changed ? 'Changed' : 'Unchanged'}</span></div><div className="mt-2 grid gap-2 sm:grid-cols-2"><div className="min-w-0"><p className="mb-1 text-[9px] uppercase tracking-wider text-slate-600">Original</p><p className="break-words font-mono text-[10px] text-slate-500">{condition.original_value}</p></div><div className="min-w-0"><p className="mb-1 text-[9px] uppercase tracking-wider text-slate-600">Replay</p><p className={`break-words font-mono text-[10px] ${condition.changed ? 'text-amber-200' : 'text-slate-500'}`}>{condition.replay_value}</p></div></div></article>)}</div> : <p className="px-5 py-6 text-xs text-slate-500">No condition details are attached to this replay.</p>}
       </section>
 
       <section className="border border-line bg-panel">

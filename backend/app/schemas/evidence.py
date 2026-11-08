@@ -24,6 +24,23 @@ class EvidenceResponse(BaseModel):
     created_at: datetime
 
 
+class EvidenceLinkedDecision(BaseModel):
+    """Decision that references an evidence item."""
+
+    id: uuid.UUID
+    agent_id: str
+    status: str
+    created_at: datetime
+
+
+class EvidenceDetailResponse(EvidenceResponse):
+    """Evidence metadata plus the stored content and linked decisions."""
+
+    content: str | None = None
+    content_verified: bool = False
+    linked_decisions: list[EvidenceLinkedDecision] = []
+
+
 class DecisionEvidenceLink(BaseModel):
     """Link association between a decision and an evidence item."""
 

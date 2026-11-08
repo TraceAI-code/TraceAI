@@ -1,7 +1,8 @@
-import { api } from './apiClient';
-import type { AuditReport, AuditReportOutcome } from '../types/auditReport';
+import { ApiError, api } from './apiClient';
+import type { AuditReport, AuditReportOutcome, AuditReportPolicy } from '../types/auditReport';
 import type { AuditEvent } from '../types/decisionDetail';
 import type { Evidence } from '../types/evidence';
+import type { PolicyEvaluation } from '../types/policy';
 import type { ReviewAction } from '../types/review';
 
 interface BackendAuditEvent {
@@ -54,6 +55,74 @@ interface BackendAuditReport {
   }>;
 }
 
+function buildPolicies(decisionId: string, events: AuditEvent[]): AuditReportPolicy[] {
+  const entries = new Map<string, AuditReportPolicy>();
+
+  // Newest evaluation first so the most recent policy result wins.
+  for (const event of [...events].reverse()) {
+    if (event.event_type !== 'POLICY_EVALUATION') continue;
+
+    const details = Array.isArray(event.payload['policy_details'])
+      ? event.payload['policy_details']
+      : [];
+    const rawViolations = Array.isArray(event.payload['violations'])
+      ? event.payload['violations']
+      : [];
+
+    for (const rawDetail of details) {
+      if (!rawDetail || typeof rawDetail !== 'object') continue;
+      const detail = rawDetail as Record<string, unknown>;
+      const id = typeof detail['id'] === 'string' ? detail['id'] : '';
+      if (!id || entries.has(id)) continue;
+
+      const name = typeof detail['name'] === 'string' ? detail['name'] : id;
+      const version = typeof detail['version'] === 'string' ? detail['version'] : 'unknown';
+      const violations = rawViolations.filter(
+        (violation) => violation && typeof violation === 'object'
+          && String((violation as Record<string, unknown>)['policy_id']) === id,
+      ) as Array<Record<string, unknown>>;
+      const passed = violations.length === 0;
+
+      const evaluation: PolicyEvaluation = {
+        id: `${event.id}:${id}`,
+        policy_id: id,
+        policy_version: version,
+        decision_id: decisionId,
+        evaluated_at: event.timestamp,
+        result: passed ? 'PASSED' : 'FAILED',
+        summary: passed
+          ? `Policy '${name}' passed evaluation.`
+          : violations.map((violation) => String(violation['message'] ?? 'Policy violation')).join('; '),
+        conditions: violations.map((violation) => ({
+          name: String(violation['rule_id'] ?? violation['type'] ?? 'rule'),
+          expected: String(violation['expected'] ?? violation['pattern'] ?? 'no violation'),
+          actual: String(violation['actual_value'] ?? violation['field'] ?? violation['tool_name'] ?? ''),
+          result: 'FAILED',
+        })),
+      };
+
+      entries.set(id, {
+        policy: {
+          id,
+          name,
+          version,
+          status: 'active',
+          description: '',
+          policy_type: 'governance',
+          effective_from: event.timestamp,
+          effective_to: null,
+          created_at: event.timestamp,
+          updated_at: event.timestamp,
+          rules: [],
+        },
+        evaluation,
+      });
+    }
+  }
+
+  return [...entries.values()];
+}
+
 function toAuditReport(r: BackendAuditReport): AuditReport {
   const dec = r.decision;
 
@@ -74,7 +143,7 @@ function toAuditReport(r: BackendAuditReport): AuditReport {
     title: ev.type.replace(/_/g, ' '),
     source: 'TraceAI Evidence Store',
     source_reference: ev.storage_uri,
-    content: ev.content_hash,
+    content: '',
     excerpt: null,
     created_at: ev.created_at,
     retrieved_at: null,
@@ -93,13 +162,18 @@ function toAuditReport(r: BackendAuditReport): AuditReport {
     created_at: rev.timestamp,
   }));
 
-  // Derive final outcome from the last OUTPUT or ACTION_TAKEN event
+  const policies = buildPolicies(dec.id, events);
+
+  // Derive final outcome from the last OUTPUT, ACTION_TAKEN, or DECISION_MADE event
   const outputEvent = [...events].reverse().find(
-    (e) => e.event_type === 'OUTPUT' || e.event_type === 'ACTION_TAKEN',
+    (e) => e.event_type === 'OUTPUT' || e.event_type === 'ACTION_TAKEN' || e.event_type === 'DECISION_MADE',
   );
   let finalOutcome: AuditReportOutcome | null = null;
   if (outputEvent) {
-    const verdict = outputEvent.payload?.['verdict'] ?? outputEvent.payload?.['action'] ?? outputEvent.payload?.['status'];
+    const verdict = outputEvent.payload?.['verdict']
+      ?? outputEvent.payload?.['action']
+      ?? outputEvent.payload?.['decision']
+      ?? outputEvent.payload?.['status'];
     if (verdict) {
       finalOutcome = {
         value: String(verdict),
@@ -121,10 +195,10 @@ function toAuditReport(r: BackendAuditReport): AuditReport {
       root_hash: dec.root_hash,
       event_count: events.length,
     },
-    executive_summary: `Decision ${dec.id} by agent ${dec.agent_id} (v${dec.agent_version}). Status: ${dec.status}. Chain: ${integ.valid ? 'VALID' : 'COMPROMISED'}.`,
+    executive_summary: `Decision ${dec.id} by agent ${dec.agent_id} (v${dec.agent_version}). Status: ${dec.status}. Chain: ${integ.valid ? 'VALID' : 'COMPROMISED'}. Policy evaluations: ${policies.length}.`,
     events,
     evidence,
-    policies: [],
+    policies,
     reviews,
     integrity: integ
       ? {
@@ -136,7 +210,13 @@ function toAuditReport(r: BackendAuditReport): AuditReport {
           chain_status: integ.valid ? 'VALID' : 'COMPROMISED',
           verification_status: integ.valid ? 'VERIFIED' : 'FAILED',
           last_verified_at: r.report_metadata.generated_at,
-          events: [],
+          events: events.map((event) => ({
+            event_id: event.id,
+            sequence: event.sequence,
+            event_type: event.event_type,
+            hash: event.hash,
+            previous_hash: event.previous_hash,
+          })),
         }
       : null,
     final_outcome: finalOutcome,
@@ -149,8 +229,9 @@ export async function getAuditReport(decisionId: string): Promise<AuditReport | 
       `/decisions/${decisionId}/audit-report?format=json`,
     );
     return toAuditReport(r);
-  } catch {
-    return null;
+  } catch (cause) {
+    if (cause instanceof ApiError && cause.status === 404) return null;
+    throw cause;
   }
 }
 
@@ -193,4 +274,3 @@ export async function getAuditReports(): Promise<AuditReport[]> {
       : null,
   }));
 }
-

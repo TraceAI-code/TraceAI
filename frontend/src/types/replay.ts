@@ -3,6 +3,8 @@ export interface ReplayCondition {
   original_value: string;
   replay_value: string;
   changed: boolean;
+  /** Type of the captured input so what-if overrides keep their native JSON type. */
+  value_type?: 'string' | 'number' | 'boolean' | 'json';
 }
 
 export interface ReplayDifference {

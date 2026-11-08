@@ -46,10 +46,10 @@ export default function AuditReportsPage() {
       ) : error ? (
         <div role="alert" className="border border-rose-400/20 bg-panel px-5 py-6 text-sm text-rose-300">Could not load reports: {error}</div>
       ) : reports.length === 0 ? (
-        <div className="border border-line bg-panel px-5 py-10 text-center"><FileText size={20} className="mx-auto text-slate-500" /><p className="mt-3 text-sm text-slate-300">No audit reports are available.</p><p className="mt-1 text-xs text-slate-500">Reports will appear here when report fixtures are available.</p></div>
+        <div className="border border-line bg-panel px-5 py-10 text-center"><FileText size={20} className="mx-auto text-slate-500" /><p className="mt-3 text-sm text-slate-300">No audit reports are available.</p><p className="mt-1 text-xs text-slate-500">Reports will appear here once decisions are recorded.</p></div>
       ) : (
         <section aria-label="Available audit reports" className="border border-line bg-panel">
-          <div className="flex items-center justify-between border-b border-line px-4 py-3"><div><h2 className="text-xs font-medium text-slate-200">Available reports</h2><p className="mt-1 text-[10px] text-slate-500">{reports.length} development reports</p></div><Fingerprint size={15} className="text-slate-500" /></div>
+          <div className="flex items-center justify-between border-b border-line px-4 py-3"><div><h2 className="text-xs font-medium text-slate-200">Available reports</h2><p className="mt-1 text-[10px] text-slate-500">{reports.length} reports</p></div><Fingerprint size={15} className="text-slate-500" /></div>
           <ul className="divide-y divide-line">
             {reports.map((report) => (
               <li key={report.decision.id}>

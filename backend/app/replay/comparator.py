@@ -105,8 +105,9 @@ class ExecutionComparator:
         replay_events: list[dict],
     ) -> tuple[bool, list[ToolCallDiff]]:
         """Compare tool calls, input arguments, and results across both runs."""
-        orig_tools = [e for e in orig_events if "TOOL_CALL" in e.get("event_type", "")]
-        replay_tools = [e for e in replay_events if "TOOL_CALL" in e.get("event_type", "")]
+        completed_types = ("TOOL_CALL_COMPLETED", "TOOL_CALL_FAILED")
+        orig_tools = [e for e in orig_events if e.get("event_type") in completed_types]
+        replay_tools = [e for e in replay_events if e.get("event_type") in completed_types]
 
         details: list[ToolCallDiff] = []
         all_matched = True

@@ -110,14 +110,34 @@ export async function createDeterministicReplay(decisionId: string): Promise<Rep
   return toReplayRun(r);
 }
 
+function parseConditionValue(condition: ReplayCondition): unknown {
+  const raw = condition.replay_value;
+  switch (condition.value_type) {
+    case 'number': {
+      const parsed = Number(raw);
+      return Number.isFinite(parsed) ? parsed : raw;
+    }
+    case 'boolean':
+      return raw === 'true';
+    case 'json':
+      try {
+        return JSON.parse(raw);
+      } catch {
+        return raw;
+      }
+    default:
+      return raw;
+  }
+}
+
 export async function createWhatIfReplay(
   decisionId: string,
   inputConditions: ReplayCondition[],
 ): Promise<ReplayRun> {
-  // Convert conditions to override_inputs dict
-  const overrideInputs: Record<string, string> = {};
+  // Convert conditions to an override_inputs dict, preserving native types.
+  const overrideInputs: Record<string, unknown> = {};
   for (const c of inputConditions.filter((c) => c.changed)) {
-    overrideInputs[c.name] = c.replay_value;
+    overrideInputs[c.name] = parseConditionValue(c);
   }
 
   const r = await api.post<BackendReplay>(`/decisions/${decisionId}/replay`, {

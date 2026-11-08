@@ -67,7 +67,7 @@ function LoadingState() {
   return (
     <div role="status" className="flex items-center gap-3 border border-line bg-panel px-5 py-8 text-sm text-slate-400">
       <LoaderCircle size={17} className="animate-spin text-accent" />
-      Loading development decision records…
+      Loading decision records…
     </div>
   );
 }

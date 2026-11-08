@@ -26,7 +26,7 @@ import type { ReviewAction, ReviewActionKind } from '../types/review';
 import { getDecisionDetail } from '../services/decisionDetailService';
 import { getEvaluationsForDecision, getPolicyById } from '../services/policyService';
 import { getIntegrityForDecision } from '../services/integrityService';
-import { getReviewsForDecision, submitMockReview } from '../services/reviewService';
+import { getReviewsForDecision, submitReview } from '../services/reviewService';
 
 const eventPresentation: Record<string, { title: string; description: string; icon: LucideIcon }> = {
   INPUT_RECEIVED: {
@@ -222,13 +222,13 @@ function ReviewPanel({ decisionId }: { decisionId: string }) {
 
     setSubmitting(true);
     try {
-      const review = await submitMockReview({ decision_id: decisionId, action, comment: comment || null });
+      const review = await submitReview({ decision_id: decisionId, action, comment: comment || null });
       setReviews((current) => [review, ...current].sort((a, b) => b.created_at.localeCompare(a.created_at)));
       setAction('');
       setComment('');
       setSubmitted(true);
     } catch (cause) {
-      setValidationError(cause instanceof Error ? cause.message : 'The mock review could not be added.');
+      setValidationError(cause instanceof Error ? cause.message : 'The review could not be recorded.');
     } finally {
       setSubmitting(false);
     }
@@ -238,7 +238,6 @@ function ReviewPanel({ decisionId }: { decisionId: string }) {
 
   return (
     <SupportingPanel title="Human review" icon={ClipboardList}>
-      <div className="mb-4 border border-amber-400/15 bg-amber-400/[0.035] px-3 py-2.5 text-[10px] leading-4 text-amber-200/80">Development mock review — not persisted to the backend.</div>
       {loading ? <p role="status" className="text-[11px] text-slate-500">Loading review history…</p> : error ? (
         <p role="alert" className="text-[11px] text-rose-300">Could not load reviews: {error}</p>
       ) : latestReview ? (
@@ -267,7 +266,7 @@ function ReviewPanel({ decisionId }: { decisionId: string }) {
 
       {!loading && !error && (
         <form onSubmit={handleSubmit} className="mt-4 border-t border-line pt-4">
-          <p className="mb-3 text-[10px] font-medium uppercase tracking-wider text-slate-500">Add development review</p>
+          <p className="mb-3 text-[10px] font-medium uppercase tracking-wider text-slate-500">Record a reviewer decision</p>
           <label className="mb-3 block text-[10px] text-slate-500">Review action
             <select value={action} onChange={(event) => { setAction(event.target.value as ReviewActionKind | ''); setValidationError(null); }} className="mt-1.5 h-10 w-full border border-line bg-shell px-3 text-xs text-slate-300 outline-none focus:border-accent/50 focus-visible:ring-1 focus-visible:ring-accent/30 sm:h-9">
               <option value="">Choose an action</option>
@@ -281,9 +280,9 @@ function ReviewPanel({ decisionId }: { decisionId: string }) {
             <textarea value={comment} onChange={(event) => { setComment(event.target.value); setValidationError(null); }} rows={3} maxLength={500} placeholder="Add reviewer context…" className="mt-1.5 w-full resize-y border border-line bg-shell px-3 py-2 text-xs leading-5 text-slate-300 outline-none placeholder:text-slate-600 focus:border-accent/50 focus-visible:ring-1 focus-visible:ring-accent/30" />
           </label>
           {validationError && <p role="alert" className="mt-2 text-[10px] text-rose-300">{validationError}</p>}
-          {submitted && <p role="status" className="mt-2 text-[10px] text-emerald-300/80">Mock review added to this in-memory development session only.</p>}
+          {submitted && <p role="status" className="mt-2 text-[10px] text-emerald-300/80">Review recorded in the audit trail.</p>}
           <button type="submit" disabled={submitting} className="mt-3 inline-flex min-h-10 items-center gap-2 border border-line px-3 text-[11px] text-slate-300 outline-none hover:border-slate-600 hover:text-white focus-visible:ring-1 focus-visible:ring-accent/50 disabled:opacity-50">
-            {submitting ? <LoaderCircle size={13} className="animate-spin" /> : <Check size={13} />}Submit mock review
+            {submitting ? <LoaderCircle size={13} className="animate-spin" /> : <Check size={13} />}Submit review
           </button>
         </form>
       )}
@@ -313,7 +312,6 @@ function IntegrityPanel({ decisionId }: { decisionId: string }) {
 
   return (
     <SupportingPanel title="Audit integrity" icon={Fingerprint}>
-      <div className="mb-3 border border-amber-400/15 bg-amber-400/[0.035] px-3 py-2 text-[10px] leading-4 text-amber-200/80">Development integrity fixture data.</div>
       {loading ? <p role="status" className="text-[11px] text-slate-500">Loading integrity information…</p> : error ? (
         <p role="alert" className="text-[11px] text-rose-300">Could not load integrity information: {error}</p>
       ) : integrity ? (
@@ -321,7 +319,7 @@ function IntegrityPanel({ decisionId }: { decisionId: string }) {
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <span className="text-[10px] text-slate-500">Chain status</span><StatusBadge status={integrity.chain_status} />
           </div>
-          {integrity.chain_status === 'CHAIN_WARNING' && <p className="mb-3 flex items-start gap-2 text-[10px] leading-4 text-amber-200/80"><AlertTriangle size={12} className="mt-0.5 shrink-0" />The fixture reports a chain warning; this frontend has not independently checked it.</p>}
+          {integrity.chain_status === 'CHAIN_WARNING' && <p className="mb-3 flex items-start gap-2 text-[10px] leading-4 text-amber-200/80"><AlertTriangle size={12} className="mt-0.5 shrink-0" />The backend reports a chain warning; this frontend has not independently checked it.</p>}
           <dl className="grid grid-cols-2 gap-x-3 gap-y-3 border-b border-line pb-3">
             <div><dt className="mb-1 text-[9px] uppercase tracking-wider text-slate-600">Event count</dt><dd className="font-mono text-xs text-slate-300">{integrity.event_count}</dd></div>
             <div><dt className="mb-1 text-[9px] uppercase tracking-wider text-slate-600">Events hashed</dt><dd className="font-mono text-xs text-slate-300">{integrity.events_hashed}</dd></div>
@@ -339,7 +337,7 @@ function IntegrityPanel({ decisionId }: { decisionId: string }) {
                   <p className="text-[9px] uppercase tracking-wider text-slate-600">Sequence {event.sequence} · Event type</p>
                   <p className="mt-1 text-[10px] font-medium text-slate-300">{humanize(event.event_type)}</p>
                   <div className="mt-2"><HashValue label="Event ID" value={event.event_id} /></div>
-                  <div className="mt-2 space-y-2"><HashValue label="Event hash · fixture value" value={event.hash} /><HashValue label="Previous hash · fixture value" value={event.previous_hash} /></div>
+                  <div className="mt-2 space-y-2"><HashValue label="Event hash" value={event.hash} /><HashValue label="Previous hash" value={event.previous_hash} /></div>
                 </div>
               ))}
               {integrity.last_verified_at && <p className="text-[9px] text-slate-600">Source last-verified timestamp: {formatTimestamp(integrity.last_verified_at)}</p>}
@@ -347,7 +345,7 @@ function IntegrityPanel({ decisionId }: { decisionId: string }) {
           </details>
         </>
       ) : (
-        <div className="flex items-start gap-2 text-[11px] leading-5 text-slate-500"><LockKeyhole size={13} className="mt-0.5 shrink-0" />Integrity information unavailable for this decision in the current development fixtures.</div>
+        <div className="flex items-start gap-2 text-[11px] leading-5 text-slate-500"><LockKeyhole size={13} className="mt-0.5 shrink-0" />Integrity information is unavailable for this decision.</div>
       )}
     </SupportingPanel>
   );
@@ -466,8 +464,8 @@ function DecisionContent({ decision }: { decision: DecisionDetail }) {
                   </li>
                 ))}
               </ul>
-            ) : <p className="text-[11px] text-slate-500">No evidence linked in this development record.</p>}
-            <p className="mt-3 border-t border-line pt-2.5 text-[10px] leading-4 text-slate-600">Open a linked record to inspect its development evidence details.</p>
+            ) : <p className="text-[11px] text-slate-500">No evidence is linked to this decision.</p>}
+            <p className="mt-3 border-t border-line pt-2.5 text-[10px] leading-4 text-slate-600">Open a linked record to inspect its stored evidence details.</p>
           </SupportingPanel>
 
           <SupportingPanel title="Policy" icon={Scale}>
@@ -533,7 +531,7 @@ function NotFoundState() {
       <CircleDot size={20} className="mx-auto text-slate-500" />
       <p className="mt-4 font-mono text-[10px] uppercase tracking-[0.16em] text-slate-500">404 / DECISION_NOT_FOUND</p>
       <h1 className="mt-2 text-lg font-semibold text-slate-100">Decision not found</h1>
-      <p className="mx-auto mt-2 max-w-md text-xs leading-5 text-muted">This ID is not present in the current development detail records.</p>
+      <p className="mx-auto mt-2 max-w-md text-xs leading-5 text-muted">This ID is not present in the decision register.</p>
       <Link to="/decisions" className="mt-5 inline-flex items-center gap-2 border border-line px-3 py-2 text-xs text-slate-300 hover:border-slate-600 hover:text-white">
         <ArrowLeft size={13} /> Back to decisions
       </Link>

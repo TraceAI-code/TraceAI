@@ -64,7 +64,7 @@ function TypeBadge({ type }: { type: string }) {
 function LoadingState() {
   return (
     <div role="status" className="flex items-center gap-3 border border-line bg-panel px-5 py-8 text-sm text-slate-400">
-      <LoaderCircle size={17} className="animate-spin text-accent" /> Loading development evidence records…
+      <LoaderCircle size={17} className="animate-spin text-accent" /> Loading evidence records…
     </div>
   );
 }

@@ -113,7 +113,7 @@ function EvaluationEntry({ evaluation }: { evaluation: PolicyEvaluation }) {
 }
 
 function LoadingState() {
-  return <div role="status" className="flex items-center gap-3 border border-line bg-panel px-5 py-8 text-sm text-slate-400"><LoaderCircle size={17} className="animate-spin text-accent" />Loading development policy…</div>;
+  return <div role="status" className="flex items-center gap-3 border border-line bg-panel px-5 py-8 text-sm text-slate-400"><LoaderCircle size={17} className="animate-spin text-accent" />Loading policy…</div>;
 }
 
 function ErrorState({ message }: { message: string }) {
@@ -126,7 +126,7 @@ function NotFoundState() {
       <BookOpenText size={20} className="mx-auto text-slate-500" />
       <p className="mt-4 font-mono text-[10px] uppercase tracking-[0.16em] text-slate-500">404 / POLICY_NOT_FOUND</p>
       <h1 className="mt-2 text-lg font-semibold text-slate-100">Policy not found</h1>
-      <p className="mx-auto mt-2 max-w-md text-xs leading-5 text-muted">This ID is not present in the current development policy records.</p>
+      <p className="mx-auto mt-2 max-w-md text-xs leading-5 text-muted">This ID is not present in the policy register.</p>
       <Link to="/policies" className="mt-5 inline-flex items-center gap-2 border border-line px-3 py-2 text-xs text-slate-300 hover:border-slate-600 hover:text-white"><ArrowLeft size={13} />Back to Policy Library</Link>
     </div>
   );
@@ -200,8 +200,7 @@ export default function PolicyDetailPage() {
               <div><p className="mb-1 font-mono text-[9px] uppercase tracking-[0.14em] text-accent/70">Decision relationship</p><h2 className="text-xs font-medium text-slate-300">Evaluation history</h2></div>
               <span className="font-mono text-[10px] text-slate-500">{evaluations.length} evaluations</span>
             </div>
-            <p className="border-b border-line/70 px-4 py-2.5 text-[10px] text-amber-300/70 sm:px-5">Development mock evaluations · not from the backend</p>
-            {evaluations.length ? <ul>{evaluations.map((evaluation) => <EvaluationEntry key={evaluation.id} evaluation={evaluation} />)}</ul> : <p className="px-5 py-7 text-xs text-slate-500">No evaluation history is available for this policy.</p>}
+            {evaluations.length ? <ul>{evaluations.map((evaluation) => <EvaluationEntry key={evaluation.id} evaluation={evaluation} />)}</ul> : <p className="px-5 py-7 text-xs text-slate-500">No recorded evaluations reference this policy yet.</p>}
           </section>
         </>
       ) : <NotFoundState />}

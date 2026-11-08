@@ -28,3 +28,25 @@ class PolicyResponse(BaseModel):
     effective_from: datetime
     effective_to: datetime | None
     created_at: datetime
+
+
+class PolicyEvaluationCondition(BaseModel):
+    """Single rule outcome within a policy evaluation."""
+
+    name: str
+    expected: str
+    actual: str
+    result: str
+
+
+class PolicyEvaluationResponse(BaseModel):
+    """A policy evaluation reconstructed from the decision audit chain."""
+
+    id: str
+    policy_id: uuid.UUID
+    policy_version: str
+    decision_id: uuid.UUID
+    evaluated_at: datetime
+    result: str
+    summary: str
+    conditions: list[PolicyEvaluationCondition] = Field(default_factory=list)

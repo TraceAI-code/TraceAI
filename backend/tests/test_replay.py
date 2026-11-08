@@ -7,6 +7,32 @@ from traceai_sdk.client import TraceAIClient
 client = TestClient(app)
 
 
+def test_decision_lifecycle_status_transitions():
+    """Decision status advances from created to running to completed."""
+    created = client.post(
+        "/api/v1/decisions",
+        json={
+            "agent_id": "lifecycle_agent",
+            "agent_version": "1.0.0",
+            "input_data": {"value": 1},
+        },
+    ).json()
+    assert created["status"] == "created"
+    decision_id = created["id"]
+
+    client.post(
+        f"/api/v1/decisions/{decision_id}/events",
+        json={"event_type": "MODEL_INFERENCE", "payload": {"rationale": "working"}},
+    )
+    assert client.get(f"/api/v1/decisions/{decision_id}").json()["status"] == "running"
+
+    client.post(
+        f"/api/v1/decisions/{decision_id}/events",
+        json={"event_type": "DECISION_COMPLETED", "payload": {"status": "completed"}},
+    )
+    assert client.get(f"/api/v1/decisions/{decision_id}").json()["status"] == "completed"
+
+
 def test_deterministic_replay_and_diff():
     """Test deterministic replay matching and what-if simulation divergence."""
     # 1. Setup a complete decision trace

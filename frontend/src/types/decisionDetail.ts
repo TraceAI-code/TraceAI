@@ -40,6 +40,7 @@ export interface DecisionDetail {
   created_at: string;
   root_hash: string | null;
   event_count: number;
+  input_data: Record<string, unknown>;
   decision_summary: string;
   events: AuditEvent[];
   evidence: DecisionEvidenceReference[];

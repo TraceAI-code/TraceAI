@@ -1,12 +1,18 @@
 """API endpoints for storing, retrieving, and downloading evidence artifacts."""
 
+import hashlib
 import uuid
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
-from app.db.models import Evidence
-from app.schemas.evidence import EvidenceCreate, EvidenceResponse
+from app.db.models import Decision, DecisionEvidence, Evidence
+from app.schemas.evidence import (
+    EvidenceCreate,
+    EvidenceDetailResponse,
+    EvidenceLinkedDecision,
+    EvidenceResponse,
+)
 from app.services.evidence_service import (
     get_evidence,
     get_evidence_by_hash,
@@ -54,17 +60,51 @@ def list_evidence(
 
 @router.get(
     "/{evidence_id}",
-    response_model=EvidenceResponse,
+    response_model=EvidenceDetailResponse,
 )
 def get_evidence_metadata(
     evidence_id: uuid.UUID,
     db: Session = Depends(get_db),
 ):
-    """Get metadata for an evidence artifact by its ID."""
+    """Get metadata, stored content, and linked decisions for an evidence artifact."""
     ev = get_evidence(db, evidence_id)
     if not ev:
         raise HTTPException(status_code=404, detail="Evidence not found")
-    return ev
+
+    raw_content = retrieve_evidence_content(db, evidence_id)
+    content: str | None = None
+    verified = False
+    if raw_content is not None:
+        content = raw_content.decode("utf-8", errors="replace")
+        verified = hashlib.sha256(raw_content).hexdigest() == ev.content_hash
+
+    links = (
+        db.query(Decision)
+        .join(DecisionEvidence, DecisionEvidence.decision_id == Decision.id)
+        .filter(DecisionEvidence.evidence_id == evidence_id)
+        .order_by(Decision.created_at.desc())
+        .all()
+    )
+
+    return EvidenceDetailResponse(
+        id=ev.id,
+        type=ev.type,
+        content_hash=ev.content_hash,
+        storage_uri=ev.storage_uri,
+        metadata_json=ev.metadata_json,
+        created_at=ev.created_at,
+        content=content,
+        content_verified=verified,
+        linked_decisions=[
+            EvidenceLinkedDecision(
+                id=d.id,
+                agent_id=d.agent_id,
+                status=d.status,
+                created_at=d.created_at,
+            )
+            for d in links
+        ],
+    )
 
 
 @router.get(
